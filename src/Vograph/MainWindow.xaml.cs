@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Vograph.Core.Models;
 using Vograph.Core.Services;
 using Vograph.Dialogs;
@@ -18,6 +19,10 @@ public partial class MainWindow : Window
     private ScheduleService? _schedule;
     private OverrideService? _overrideService;
     private HomeworkService? _homeworkService;
+    private IntersectionService? _intersectionService;
+    private NotificationService? _notificationService;
+    private DispatcherTimer? _notifyTimer;
+    private readonly string[] _friendColors = new[] { "#FF6CA5E0", "#FF98C379", "#FFE06C75", "#FFC678DD", "#FFF2C55C" };
     private string _currentTab = "Tomorrow"; // Today|Tomorrow|Week
     private int _weekParity = 1; // 1 odd, 2 even for week view
     private bool _isLoading = false;
@@ -42,11 +47,16 @@ public partial class MainWindow : Window
             _schedule = new ScheduleService(_db);
             _overrideService = new OverrideService(_db);
             _homeworkService = new HomeworkService(_db);
+            _intersectionService = new IntersectionService(_db);
+            _notificationService = new NotificationService(_db, _overrideService, _homeworkService, _schedule);
             // Recompute homework statuses on start
             try { _homeworkService.RecomputeAllStatuses(); } catch { }
 
             await EnsureDataAsync();
             LoadGroups();
+            LoadFriendsUI();
+            LoadNotificationUI();
+            StartNotifyTimer();
             SelectInitialGroup();
             UpdateParityBadge(DateTime.Today.AddDays(_currentTab == "Tomorrow" ? 1 : 0));
             RenderCurrentView();
@@ -163,6 +173,104 @@ public partial class MainWindow : Window
         _db.SaveSettings(s);
         try { _homeworkService?.RecomputeAllStatuses(); } catch { }
         RenderCurrentView();
+    }
+
+    private void LoadFriendsUI()
+    {
+        if (_db == null) return;
+        var groups = _db.GetAllGroups();
+        FriendGroupPicker.ItemsSource = groups;
+        FriendGroupPicker.DisplayMemberPath = "Name";
+        FriendGroupPicker.SelectedValuePath = "Name";
+        var settings = _db.GetSettings();
+        StrictnessSlider.Value = settings.IntersectionStrictness;
+        StrictnessLabel.Text = $"{settings.IntersectionStrictness} — {(settings.IntersectionStrictness == 0 ? "любое время" : settings.IntersectionStrictness == 100 ? "аудитория" : settings.IntersectionStrictness < 40 ? "время" : "корпус")}";
+        FriendsListPanel.Children.Clear();
+        var friends = _db.GetFriends();
+        foreach (var f in friends)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0,2,0,2) };
+            var dot = new TextBlock { Text = "●", Foreground = (Brush)new BrushConverter().ConvertFromString(f.ColorHex)!, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,6,0) };
+            var name = new TextBlock { Text = f.GroupName, Foreground = (Brush)FindResource("Marble"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Width = 120 };
+            var btn = new Button { Content = "✕", Style = (Style)FindResource("GhostButton"), Padding = new Thickness(4,2,4,2), FontSize = 10, Margin = new Thickness(6,0,0,0) };
+            var fid = f.Id;
+            btn.Click += (s, e) => { _db?.DeleteFriend(fid); LoadFriendsUI(); RenderCurrentView(); };
+            row.Children.Add(dot); row.Children.Add(name); row.Children.Add(btn);
+            FriendsListPanel.Children.Add(row);
+        }
+        if (friends.Count >= 5)
+        {
+            FriendGroupPicker.IsEnabled = false;
+        }
+        else FriendGroupPicker.IsEnabled = true;
+    }
+
+    private void AddFriend_Click(object sender, RoutedEventArgs e)
+    {
+        if (_db == null) return;
+        if (FriendGroupPicker.SelectedValue is not string name) { StatusText.Text = "Выберите группу"; return; }
+        var existing = _db.GetFriends();
+        if (existing.Count >= 5) { StatusText.Text = "Максимум 5 друзей"; return; }
+        if (existing.Any(x => x.GroupName == name)) { StatusText.Text = "Уже добавлена"; return; }
+        var idx = existing.Count % _friendColors.Length;
+        var f = new FriendGroup { GroupName = name, ColorHex = _friendColors[idx], Enabled = true };
+        _db.InsertFriend(f);
+        LoadFriendsUI();
+        RenderCurrentView();
+        StatusText.Text = $"Друг {name} добавлен";
+    }
+
+    private void Strictness_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_db == null || _isLoading) return;
+        var val = (int)StrictnessSlider.Value;
+        var s = _db.GetSettings();
+        s.IntersectionStrictness = val;
+        _db.SaveSettings(s);
+        StrictnessLabel.Text = $"{val} — {(val == 0 ? "любое время" : val == 100 ? "аудитория" : val < 40 ? "время" : "корпус")}";
+        RenderCurrentView();
+    }
+
+    private void LoadNotificationUI()
+    {
+        if (_db == null) return;
+        var s = _db.GetSettings();
+        NotifyTime1Box.Text = s.NotifyTime1 ?? "20:00";
+        NotifyTime2Box.Text = s.NotifyTime2 ?? "07:30";
+    }
+
+    private void SaveNotifyTimes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_db == null) return;
+        var s = _db.GetSettings();
+        // Validate HH:mm
+        bool ok1 = TimeSpan.TryParse(NotifyTime1Box.Text.Trim(), out _);
+        bool ok2 = TimeSpan.TryParse(NotifyTime2Box.Text.Trim(), out _);
+        if (!ok1 || !ok2) { StatusText.Text = "Неверный формат времени HH:mm"; return; }
+        s.NotifyTime1 = NotifyTime1Box.Text.Trim();
+        s.NotifyTime2 = NotifyTime2Box.Text.Trim();
+        _db.SaveSettings(s);
+        StatusText.Text = $"Уведомления сохранены {s.NotifyTime1} и {s.NotifyTime2}";
+        StartNotifyTimer();
+    }
+
+    private void StartNotifyTimer()
+    {
+        _notifyTimer?.Stop();
+        _notifyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _notifyTimer.Tick += (s, e) =>
+        {
+            if (_db == null || _notificationService == null) return;
+            var now = DateTime.Now;
+            var settings = _db.GetSettings();
+            if (_notificationService.ShouldFire(now, settings.NotifyTime1, settings.NotifyTime2))
+            {
+                // Avoid duplicate firing within same minute: log check
+                _notificationService.LogAndShow(now);
+                StatusText.Text = $"Уведомление показано в {now:HH:mm}";
+            }
+        };
+        _notifyTimer.Start();
     }
 
     private void GroupPicker_Changed(object sender, SelectionChangedEventArgs e)
@@ -401,7 +509,36 @@ public partial class MainWindow : Window
 
         var tbTeach = new TextBlock { Text = string.IsNullOrEmpty(l.TeacherRaw) ? "—" : l.TeacherRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         var tbRoom = new TextBlock { Text = string.IsNullOrEmpty(l.ClassroomRaw) ? "—" : l.ClassroomRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-        var tbIcon = new TextBlock { Text = "●", Foreground = (Brush)FindResource("Bronze"), FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.15 };
+        // Intersection icons: colored dots per friend meeting threshold
+        var iconPanel = new StackPanel { Orientation = Orientation.Vertical, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        try
+        {
+            var friends = _db?.GetFriends() ?? new List<FriendGroup>();
+            var settings = _db?.GetSettings();
+            int strict = settings?.IntersectionStrictness ?? 50;
+            DateTime iconDate = _currentTab == "Today" ? DateTime.Today : _currentTab == "Tomorrow" ? DateTime.Today.AddDays(1) : DateTime.Today; // for week view handled separately
+            // For day view we have exact date, for week view we need dow-based; but here we use today/tomorrow date; intersection will be based on that date's parity
+            var inters = _intersectionService?.GetIntersections(l, iconDate, friends, strict) ?? new List<IntersectionService.IntersectionResult>();
+            if (inters.Count == 0)
+            {
+                var tbIcon = new TextBlock { Text = "·", Foreground = (Brush)FindResource("MarbleDim"), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Opacity = 0.3 };
+                iconPanel.Children.Add(tbIcon);
+            }
+            else
+            {
+                foreach (var inter in inters.Take(5))
+                {
+                    var dot = new TextBlock { Text = "●", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,1,0,1), ToolTip = $"{inter.FriendGroupName} — {inter.Teacher} {inter.Room} ({inter.Score})" };
+                    try { dot.Foreground = (Brush)new BrushConverter().ConvertFromString(inter.FriendColor)!; } catch { dot.Foreground = (Brush)FindResource("Bronze"); }
+                    iconPanel.Children.Add(dot);
+                }
+            }
+        }
+        catch
+        {
+            var tbIconFallback = new TextBlock { Text = "●", Foreground = (Brush)FindResource("Bronze"), FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.15 };
+            iconPanel.Children.Add(tbIconFallback);
+        }
 
         // Action buttons
         var actionPanel = new StackPanel { Orientation = Orientation.Vertical };
@@ -412,8 +549,8 @@ public partial class MainWindow : Window
         actionPanel.Children.Add(btnRename);
         actionPanel.Children.Add(btnHw);
 
-        Grid.SetColumn(tbNo, 0); Grid.SetColumn(tbTime, 1); Grid.SetColumn(tbSubjStack, 2); Grid.SetColumn(tbTeach, 3); Grid.SetColumn(tbRoom, 4); Grid.SetColumn(tbIcon, 5); Grid.SetColumn(actionPanel, 6);
-        grid.Children.Add(tbNo); grid.Children.Add(tbTime); grid.Children.Add(tbSubjStack); grid.Children.Add(tbTeach); grid.Children.Add(tbRoom); grid.Children.Add(tbIcon); grid.Children.Add(actionPanel);
+        Grid.SetColumn(tbNo, 0); Grid.SetColumn(tbTime, 1); Grid.SetColumn(tbSubjStack, 2); Grid.SetColumn(tbTeach, 3); Grid.SetColumn(tbRoom, 4); Grid.SetColumn(iconPanel, 5); Grid.SetColumn(actionPanel, 6);
+        grid.Children.Add(tbNo); grid.Children.Add(tbTime); grid.Children.Add(tbSubjStack); grid.Children.Add(tbTeach); grid.Children.Add(tbRoom); grid.Children.Add(iconPanel); grid.Children.Add(actionPanel);
 
         // Context menu for right-click
         var cm = new ContextMenu();

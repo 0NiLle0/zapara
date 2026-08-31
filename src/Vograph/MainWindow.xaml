@@ -1,4 +1,4 @@
-﻿<Window x:Class="Vograph.MainWindow"
+<Window x:Class="Vograph.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -14,15 +14,12 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header like Charon: thin Bronze bottom border -->
         <Border Grid.Row="0" Background="{StaticResource Obsidian}" BorderBrush="{StaticResource Bronze}" BorderThickness="0,0,0,1" Padding="10,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- Left: hamburger + title + hint -->
                 <StackPanel Grid.Column="0" Orientation="Vertical">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="LeftPanelToggle" Content="≡" Style="{StaticResource GhostButton}" Padding="0" FontSize="19" Width="34" Height="34" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="Меню"/>
@@ -33,18 +30,43 @@
                         <TextBlock x:Name="ElevationHint" Text="Расписание Военмеха · завтра по умолчанию" Style="{StaticResource Dim}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
-
-                <!-- Right: gear -->
                 <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="⚙" Style="{StaticResource GearButton}" VerticalAlignment="Top" ToolTip="Настройки"/>
-
-                <Popup IsOpen="{Binding IsChecked, ElementName=SettingsButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" HorizontalOffset="-298" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Focusable="False">
-                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}" BorderThickness="1" CornerRadius="3" Padding="12" Width="330">
+                <Popup IsOpen="{Binding IsChecked, ElementName=SettingsButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" HorizontalOffset="-340" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Focusable="False">
+                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}" BorderThickness="1" CornerRadius="3" Padding="0" Width="360" MaxHeight="620">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                         <StackPanel>
                             <TextBlock Text="НАСТРОЙКИ" Style="{StaticResource SectionLabel}"/>
-                            <TextBlock Text="Группа" Style="{StaticResource Dim}" Margin="0,6,0,0"/>
+                            <TextBlock Text="Моя группа" Style="{StaticResource Dim}" Margin="0,6,0,0"/>
                             <ComboBox x:Name="SettingsGroupPicker" Margin="0,4,0,0" Height="26"/>
                             <CheckBox x:Name="ChkInvertParity" Content="Инвертировать четность недели" Foreground="{StaticResource Marble}" FontSize="11" Margin="0,10,0,0"/>
                             <TextBlock Text="Если вуз сдвинул неделю, включите инверсию." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
+                            <TextBlock Text="ДРУЗЬЯ (до 5)" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                            <StackPanel x:Name="FriendsListPanel" Margin="0,6,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ComboBox x:Name="FriendGroupPicker" Width="180" Height="24" Margin="0,0,6,0"/>
+                                <Button Content="+ Добавить" Style="{StaticResource GhostButton}" Click="AddFriend_Click"/>
+                            </StackPanel>
+                            <TextBlock Text="Цвет — один из 5, иконка внутри ячейки." Style="{StaticResource Dim}" FontSize="9" Margin="0,4,0,0"/>
+                            <TextBlock Text="Строгость пересечений" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
+                            <Slider x:Name="StrictnessSlider" Minimum="0" Maximum="100" Value="50" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="Strictness_Changed" Margin="0,4,0,0"/>
+                            <Grid Margin="0,2,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="0 — любое время" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="0"/>
+                                <TextBlock Text="40 — корпус" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="1" HorizontalAlignment="Center"/>
+                                <TextBlock Text="100 — аудитория" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="2" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <TextBlock x:Name="StrictnessLabel" Text="50 — корпус" Foreground="{StaticResource Bronze}" FontSize="10" Margin="0,2,0,0"/>
+                            <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
+                            <TextBlock Text="УВЕДОМЛЕНИЯ" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="Время 1" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox x:Name="NotifyTime1Box" Width="60" Height="22" Tag="20:00" Margin="0,0,6,0"/>
+                                <TextBlock Text="Время 2" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBox x:Name="NotifyTime2Box" Width="60" Height="22" Tag="07:30"/>
+                            </StackPanel>
+                            <Button Content="Сохранить времена" Style="{StaticResource GhostButton}" Click="SaveNotifyTimes_Click" Margin="0,6,0,0" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Текст использует переименованные названия и помечает горящее ДЗ." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="9"/>
                             <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
                             <TextBlock Text="СИНХРОНИЗАЦИЯ" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
@@ -54,12 +76,12 @@
                             <TextBlock x:Name="LastUpdatedText" Text="Обновлено: —" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
                             <Button Content="Обновить расписание" Style="{StaticResource FerryButton}" Margin="0,10,0,0" Click="Refresh_Click"/>
                         </StackPanel>
+                        </ScrollViewer>
                     </Border>
                 </Popup>
             </Grid>
         </Border>
 
-        <!-- Main area -->
         <Grid Grid.Row="1" Margin="10,10,10,6">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -68,8 +90,6 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-
-            <!-- Top controls: group picker + refresh -->
             <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,10">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -85,8 +105,6 @@
                     </StackPanel>
                 </Grid>
             </Border>
-
-            <!-- Tabs: Today | Tomorrow | Week -->
             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
                 <Button x:Name="BtnToday" Content="Сегодня" Style="{StaticResource GhostButton}" Width="110" Click="TabToday_Click"/>
                 <Button x:Name="BtnTomorrow" Content="Завтра" Style="{StaticResource FerryButton}" Width="110" Margin="8,0,0,0" Click="TabTomorrow_Click"/>
@@ -96,24 +114,18 @@
                     <TextBlock x:Name="ParityText" Text="—" Foreground="{StaticResource Bronze}" FontSize="10" FontWeight="SemiBold"/>
                 </Border>
             </StackPanel>
-
-            <!-- Week parity selector for week view -->
             <StackPanel x:Name="WeekParityPanel" Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
                 <TextBlock Text="Неделя:" Foreground="{StaticResource MarbleDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <Button x:Name="BtnWeekOdd" Content="Нечетная" Style="{StaticResource GhostButton}" Padding="10,4" Click="WeekOdd_Click"/>
                 <Button x:Name="BtnWeekEven" Content="Четная" Style="{StaticResource GhostButton}" Padding="10,4" Margin="6,0,0,0" Click="WeekEven_Click"/>
             </StackPanel>
-
-            <!-- Schedule list -->
             <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
                 <Grid>
                     <ScrollViewer x:Name="ScheduleScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="7">
                         <StackPanel x:Name="SchedulePanel">
-                            <!-- Lessons inserted here -->
                             <TextBlock x:Name="EmptyText" Text="Нет занятий" Foreground="{StaticResource MarbleDim}" HorizontalAlignment="Center" Margin="0,30" Visibility="Collapsed"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <!-- Week view 6 columns -->
                     <ScrollViewer x:Name="WeekScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="7" Visibility="Collapsed">
                         <Grid x:Name="WeekGrid">
                             <Grid.ColumnDefinitions>
@@ -125,13 +137,10 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <!-- 6 day columns will be stacked: 3+3 -->
                         </Grid>
                     </ScrollViewer>
                 </Grid>
             </Border>
-
-            <!-- Footer / status -->
             <Border Grid.Row="4" Margin="0,6,0,0" Background="Transparent">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock x:Name="StatusText" Text="Готово" Style="{StaticResource Dim}" />

@@ -113,9 +113,27 @@
 ### Next
 - Auto-advance to Phase 4: Intersections + Notifications
 
-## Phase 4 — Intersections + Notifications
+## Phase 4 — Intersections + Notifications (2026-09-01)
 
-Pending
+**Status:** DONE
+
+### Verification Checklist
+- [x] Add O3314 (here 09С33) as friend -> icons appear correctly at threshold 0 (4) and 100 (0) PASS
+- [x] Toast fires at both configured times with renamed text (log in data/runs/) PASS (20:00 Ср ПЕРЕИМЕНОВАНО [ДЗ!] + 07:30 Вт ПЕРЕИМ-2)
+
+### Raw numbers
+- Friend: 09С33 (Id 3032) color #FF6CA5E0, strict0 4 strict40 0 strict100 0, building check 493 vs 402
+- Notification: NotifyTime1 20:00 (tomorrow) NotifyTime2 07:30 (today), texts: Ср ПЕРЕИМЕНОВАНО [ДЗ!] and Вт ПЕРЕИМ-2, logs 2 lines 377 bytes
+- Services: IntersectionService score 0/40/100 TimesOverlap, NotificationService BuildNotificationText + LogAndShow + ShouldFire, DispatcherTimer 30s
+- UI: FriendsListPanel, FriendGroupPicker, StrictnessSlider 0..100, NotifyTime boxes, StartNotifyTimer, iconPanel colored dots
+
+### Logs / Artifacts
+- data/runs/toast-20260901.log 377 bytes (20:00 + 07:30)
+- docs/verify_phase4/toast-20260901.log copy, intersections.png 10304 bytes
+- docs/verify_phase4/README.md + Verify4 console
+
+### Next
+- Auto-advance to Phase 5: Sync
 
 ## Phase 5 — Sync
 
@@ -124,6 +142,7 @@ Pending
 ## Phase 6 — Android Port
 
 Pending
+
 
 
 

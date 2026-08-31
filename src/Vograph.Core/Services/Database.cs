@@ -317,6 +317,58 @@ VALUES (@gid,@dow,@par,@idx,@ts,@te,@sub,@norm,@teach,@room,@build,@type,@cls,@r
         return list;
     }
 
+    public long InsertFriend(FriendGroup f)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO friends (groupName, colorHex, enabled) VALUES (@g,@c,@e); SELECT last_insert_rowid();";
+        cmd.Parameters.AddWithValue("@g", f.GroupName);
+        cmd.Parameters.AddWithValue("@c", f.ColorHex);
+        cmd.Parameters.AddWithValue("@e", f.Enabled ? 1 : 0);
+        return (long)cmd.ExecuteScalar()!;
+    }
+
+    public List<FriendGroup> GetFriends()
+    {
+        var list = new List<FriendGroup>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT id, groupName, colorHex, enabled FROM friends";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            list.Add(new FriendGroup { Id = r.GetInt64(0), GroupName = r.GetString(1), ColorHex = r.GetString(2), Enabled = r.GetInt32(3) != 0 });
+        }
+        return list;
+    }
+
+    public void UpdateFriend(FriendGroup f)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "UPDATE friends SET groupName=@g, colorHex=@c, enabled=@e WHERE id=@id";
+        cmd.Parameters.AddWithValue("@g", f.GroupName);
+        cmd.Parameters.AddWithValue("@c", f.ColorHex);
+        cmd.Parameters.AddWithValue("@e", f.Enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", f.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteFriend(long id)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM friends WHERE id=@id";
+        cmd.Parameters.AddWithValue("@id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public Group? GetGroupByName(string name)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT id, name, url, lastFetchedAt FROM groups WHERE name=@n";
+        cmd.Parameters.AddWithValue("@n", name);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new Group { Id = r.GetString(0), Name = r.GetString(1), Url = r.IsDBNull(2) ? "" : r.GetString(2), LastFetchedAt = r.IsDBNull(3) ? null : DateTime.TryParse(r.GetString(3), out var dt) ? dt : null };
+    }
+
     public void Dispose()
     {
         _conn.Dispose();
