@@ -1,19 +1,23 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Vograph.Core.Models;
 using Vograph.Core.Services;
+using Vograph.Dialogs;
 
 namespace Vograph;
 
-// Code comments in English, UI text in Russian per prompt §0.4
+// Code comments in English, UI text in Russian per prompt 0.4
 public partial class MainWindow : Window
 {
     private readonly string _dbPath;
     private Database? _db;
     private ParserService? _parser;
     private ScheduleService? _schedule;
+    private OverrideService? _overrideService;
+    private HomeworkService? _homeworkService;
     private string _currentTab = "Tomorrow"; // Today|Tomorrow|Week
     private int _weekParity = 1; // 1 odd, 2 even for week view
     private bool _isLoading = false;
@@ -21,12 +25,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // DB in LocalAppData\Vograph\vograph.db
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var dir = Path.Combine(appData, "Vograph");
         Directory.CreateDirectory(dir);
         _dbPath = Path.Combine(dir, "vograph.db");
-        // Fallback: also check base directory for cached xml for offline demo
         Loaded += MainWindow_Loaded;
     }
 
@@ -38,9 +40,12 @@ public partial class MainWindow : Window
             _db = new Database(_dbPath);
             _parser = new ParserService(_db);
             _schedule = new ScheduleService(_db);
+            _overrideService = new OverrideService(_db);
+            _homeworkService = new HomeworkService(_db);
+            // Recompute homework statuses on start
+            try { _homeworkService.RecomputeAllStatuses(); } catch { }
 
             await EnsureDataAsync();
-
             LoadGroups();
             SelectInitialGroup();
             UpdateParityBadge(DateTime.Today.AddDays(_currentTab == "Tomorrow" ? 1 : 0));
@@ -50,7 +55,6 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = $"Ошибка: {ex.Message}";
-            // Show stale if possible
             if (_db != null)
             {
                 try { LoadGroups(); RenderCurrentView(); StaleBadge.Visibility = Visibility.Visible; } catch { }
@@ -68,7 +72,6 @@ public partial class MainWindow : Window
         {
             if (DateTime.TryParse(settings.LastFetchedAt, out var last))
             {
-                // background refresh every 1-3 days is enough
                 if ((DateTime.UtcNow - last).TotalDays > 3) needFetch = true;
             }
             else needFetch = true;
@@ -77,10 +80,7 @@ public partial class MainWindow : Window
         {
             needFetch = true;
         }
-
-        // Try to use cached xml from docs if offline and no DB
         string fallbackXml = Path.Combine(AppContext.BaseDirectory, "TimetableGroup50.xml");
-        // Also check temp location from Phase 0 fetch
         string tempXml = @"C:\Users\NiLle\AppData\Local\Temp\opencode\TimetableGroup50.xml";
         if (needFetch)
         {
@@ -94,7 +94,6 @@ public partial class MainWindow : Window
             {
                 StatusText.Text = $"Не удалось обновить: {ex.Message}";
                 StaleBadge.Visibility = Visibility.Visible;
-                // fallback to local file if exists
                 string xml = null!;
                 if (File.Exists(fallbackXml)) xml = await File.ReadAllTextAsync(fallbackXml);
                 else if (File.Exists(tempXml)) xml = await File.ReadAllTextAsync(tempXml);
@@ -115,20 +114,19 @@ public partial class MainWindow : Window
     {
         if (_db == null) return;
         var groups = _db.GetAllGroups();
-        // Sort by name for display, but keep Id as value
         GroupPicker.ItemsSource = groups;
         GroupPicker.DisplayMemberPath = "Name";
         GroupPicker.SelectedValuePath = "Id";
-
         SettingsGroupPicker.ItemsSource = groups;
         SettingsGroupPicker.DisplayMemberPath = "Name";
         SettingsGroupPicker.SelectedValuePath = "Id";
-
         var settings = _db.GetSettings();
         ChkInvertParity.IsChecked = settings.ParityInvert;
-        ChkInvertParity.Checked += (s, e) => SaveParityInvert();
-        ChkInvertParity.Unchecked += (s, e) => SaveParityInvert();
-
+        // avoid duplicate handlers
+        ChkInvertParity.Checked -= ChkInvertParity_Checked;
+        ChkInvertParity.Unchecked -= ChkInvertParity_Checked;
+        ChkInvertParity.Checked += ChkInvertParity_Checked;
+        ChkInvertParity.Unchecked += ChkInvertParity_Checked;
         if (!string.IsNullOrEmpty(settings.MyGroupId))
         {
             GroupPicker.SelectedValue = settings.MyGroupId;
@@ -136,16 +134,12 @@ public partial class MainWindow : Window
         }
         else if (groups.Count > 0)
         {
-            // Try to select 3313 (А863С) as demo, else first
             var demo = groups.FirstOrDefault(g => g.Id == "3313") ?? groups.FirstOrDefault(g => g.Name.Contains("А863")) ?? groups[0];
             GroupPicker.SelectedValue = demo.Id;
             SettingsGroupPicker.SelectedValue = demo.Id;
-            // save
             settings.MyGroupId = demo.Id;
             _db.SaveSettings(settings);
         }
-
-        // Update hint
         var sel = GroupPicker.SelectedItem as Group;
         if (sel != null)
         {
@@ -153,9 +147,10 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ChkInvertParity_Checked(object sender, RoutedEventArgs e) => SaveParityInvert();
+
     private void SelectInitialGroup()
     {
-        // Default tab is Tomorrow per spec
         _currentTab = "Tomorrow";
         UpdateTabButtons();
     }
@@ -166,6 +161,7 @@ public partial class MainWindow : Window
         var s = _db.GetSettings();
         s.ParityInvert = ChkInvertParity.IsChecked == true;
         _db.SaveSettings(s);
+        try { _homeworkService?.RecomputeAllStatuses(); } catch { }
         RenderCurrentView();
     }
 
@@ -181,27 +177,23 @@ public partial class MainWindow : Window
             SettingsGroupPicker.SelectedValue = gid;
             var g = _db.GetGroup(gid);
             if (g != null) HeaderHint.Text = $"Группа {g.Name} · {(IsOddWeek(DateTime.Today) ? "нечетная" : "четная")} неделя";
+            try { _homeworkService?.RecomputeAllStatuses(); } catch { }
             RenderCurrentView();
         }
     }
 
     private void UpdateTabButtons()
     {
-        // Reset styles
         BtnToday.Style = (Style)FindResource("GhostButton");
         BtnTomorrow.Style = (Style)FindResource("GhostButton");
         BtnWeek.Style = (Style)FindResource("GhostButton");
         BtnWeekOdd.Style = (Style)FindResource("GhostButton");
         BtnWeekEven.Style = (Style)FindResource("GhostButton");
-
         if (_currentTab == "Today") BtnToday.Style = (Style)FindResource("FerryButton");
         else if (_currentTab == "Tomorrow") BtnTomorrow.Style = (Style)FindResource("FerryButton");
         else if (_currentTab == "Week") BtnWeek.Style = (Style)FindResource("FerryButton");
-
-        // Week parity buttons
         if (_weekParity == 1) BtnWeekOdd.Style = (Style)FindResource("FerryButton");
         else BtnWeekEven.Style = (Style)FindResource("FerryButton");
-
         WeekParityPanel.Visibility = _currentTab == "Week" ? Visibility.Visible : Visibility.Collapsed;
         ScheduleScroll.Visibility = _currentTab != "Week" ? Visibility.Visible : Visibility.Collapsed;
         WeekScroll.Visibility = _currentTab == "Week" ? Visibility.Visible : Visibility.Collapsed;
@@ -227,7 +219,6 @@ public partial class MainWindow : Window
         bool odd = IsOddWeek(date);
         ParityText.Text = odd ? "НЕЧЕТНАЯ" : "ЧЕТНАЯ";
         ParityBadge.Background = odd ? (Brush)FindResource("PanelAlt") : (Brush)FindResource("Panel");
-        // Date header
         string[] days = { "Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота" };
         int dow = (int)date.DayOfWeek;
         string dayName = days[dow];
@@ -252,17 +243,12 @@ public partial class MainWindow : Window
     {
         if (_db == null || _schedule == null) return;
         if (GroupPicker.SelectedValue is not string gid) return;
+        // recompute statuses each render
+        try { _homeworkService?.RecomputeAllStatuses(); } catch { }
         SchedulePanel.Children.Clear();
-        // Keep EmptyText but remove from panel and re-add later if needed
         EmptyText.Visibility = Visibility.Collapsed;
-
         DateTime date = _currentTab == "Today" ? DateTime.Today : DateTime.Today.AddDays(1);
-        // If user checked OnlyCurrentWeek, filter? But spec says that checkbox toggles filtering in site, we respect parity anyway.
-        // For Tomorrow/Today we show only that day's parity
         var lessons = _schedule.GetSchedule(date, gid);
-        // If ChkOnlyCurrentWeek is checked? Already filtered via parity, but if unchecked we could show both? However spec says default shows parity-filtered.
-        // We'll respect parity regardless.
-
         if (lessons.Count == 0)
         {
             EmptyText.Text = "Нет занятий";
@@ -270,11 +256,8 @@ public partial class MainWindow : Window
             SchedulePanel.Children.Add(EmptyText);
             return;
         }
-
-        // Header columns
         var header = CreateHeaderRow();
         SchedulePanel.Children.Add(header);
-
         int idx = 1;
         foreach (var l in lessons.OrderBy(x => x.TimeStart))
         {
@@ -287,13 +270,12 @@ public partial class MainWindow : Window
     {
         if (_db == null || _schedule == null) return;
         if (GroupPicker.SelectedValue is not string gid) return;
+        try { _homeworkService?.RecomputeAllStatuses(); } catch { }
         WeekGrid.Children.Clear();
         WeekGrid.RowDefinitions.Clear();
         WeekGrid.ColumnDefinitions.Clear();
-        // Create 2 rows, 3 columns = 6 days
         for (int c = 0; c < 3; c++) WeekGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         for (int r = 0; r < 2; r++) WeekGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
         for (int dow = 1; dow <= 6; dow++)
         {
             int parity = _weekParity;
@@ -308,7 +290,6 @@ public partial class MainWindow : Window
             }
             else
             {
-                // Mini header
                 var hdr = new Grid { Margin = new Thickness(0,0,0,4) };
                 hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(45) });
                 hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -319,19 +300,27 @@ public partial class MainWindow : Window
                 Grid.SetColumn(th1, 0); Grid.SetColumn(th2, 1); Grid.SetColumn(th3, 2);
                 hdr.Children.Add(th1); hdr.Children.Add(th2); hdr.Children.Add(th3);
                 stack.Children.Add(hdr);
-
                 foreach (var l in lessons.OrderBy(x => x.TimeStart))
                 {
                     var row = new Grid { Margin = new Thickness(0,2,0,2) };
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(45) });
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+                    // Use override display name here too
+                    string subj = _overrideService?.GetDisplayName(l.SubjectRaw, dow) ?? l.SubjectRaw;
                     var t = new TextBlock { Text = l.TimeStart, Foreground = (Brush)FindResource("Marble"), FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
-                    var subj = new TextBlock { Text = string.IsNullOrEmpty(l.SubjectRaw) ? "—" : l.SubjectRaw, Foreground = (Brush)FindResource("Marble"), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4,0,0,0) };
+                    var subjTb = new TextBlock { Text = string.IsNullOrEmpty(subj) ? "—" : subj, Foreground = (Brush)FindResource("Marble"), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4,0,0,0) };
                     var room = new TextBlock { Text = string.IsNullOrEmpty(l.ClassroomRaw) ? "—" : l.ClassroomRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 10 };
-                    Grid.SetColumn(t, 0); Grid.SetColumn(subj, 1); Grid.SetColumn(room, 2);
-                    row.Children.Add(t); row.Children.Add(subj); row.Children.Add(room);
+                    Grid.SetColumn(t, 0); Grid.SetColumn(subjTb, 1); Grid.SetColumn(room, 2);
+                    row.Children.Add(t); row.Children.Add(subjTb); row.Children.Add(room);
                     stack.Children.Add(row);
+                    // homework mini for week view
+                    var hwList = _homeworkService?.GetForSubject(l.SubjectRaw) ?? new List<Homework>();
+                    foreach (var hw in hwList.Where(h => h.Status != "done" && h.Status != "far").Take(1))
+                    {
+                        var hwTb = new TextBlock { Text = $"ДЗ: {hw.Text} ({hw.Status})", Foreground = GetHomeworkBrush(hw.Status), FontSize = 9, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,2,0,0) };
+                        stack.Children.Add(hwTb);
+                    }
                 }
             }
             dayCard.Child = stack;
@@ -347,13 +336,12 @@ public partial class MainWindow : Window
     {
         var border = new Border { Background = (Brush)FindResource("PanelAlt"), BorderBrush = (Brush)FindResource("BorderDim"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), Margin = new Thickness(0,0,0,6), Padding = new Thickness(7,4,7,4) };
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) }); // No.
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) }); // Time
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Subject
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) }); // Teacher
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) }); // Room
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) }); // icon
-
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
         var headers = new[] { "№", "Время", "Предмет", "Преподаватель", "Ауд./Корп.", "·" };
         for (int i = 0; i < headers.Length; i++)
         {
@@ -368,7 +356,11 @@ public partial class MainWindow : Window
 
     private Border CreateLessonCard(Lesson l, int number)
     {
-        var border = new Border { Style = (Style)FindResource("Card"), Margin = new Thickness(0,0,0,6), Padding = new Thickness(7) };
+        // Outer card
+        var outer = new Border { Style = (Style)FindResource("Card"), Margin = new Thickness(0,0,0,6), Padding = new Thickness(7) };
+        var outerStack = new StackPanel();
+
+        // Top grid with lesson info
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
@@ -376,23 +368,238 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) }); // actions
+
+        // Display name via override
+        string displayName = _overrideService?.GetDisplayName(l.SubjectRaw, l.DayOfWeek) ?? l.SubjectRaw;
+        bool isRenamed = displayName != l.SubjectRaw;
+        string note = _overrideService?.GetNote(l.SubjectRaw, l.DayOfWeek) ?? "";
 
         var tbNo = new TextBlock { Text = number.ToString(), Foreground = (Brush)FindResource("MarbleDim"), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         var tbTime = new TextBlock { Text = string.IsNullOrEmpty(l.TimeStart) ? "—" : $"{l.TimeStart}\n{l.TimeEnd}", Foreground = (Brush)FindResource("Marble"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-        var tbSubj = new TextBlock { Text = string.IsNullOrEmpty(l.SubjectRaw) ? "—" : l.SubjectRaw, Foreground = (Brush)FindResource("Marble"), FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4,0,0,0) };
+        var tbSubjStack = new StackPanel();
+        var tbSubj = new TextBlock { Text = string.IsNullOrEmpty(displayName) ? "—" : displayName, Foreground = (Brush)FindResource("Marble"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4,0,0,0) };
         if (!string.IsNullOrEmpty(l.TypeRaw))
         {
-            tbSubj.Text = $"[{l.TypeRaw}] {l.SubjectRaw}";
+            tbSubj.Text = $"[{l.TypeRaw}] {displayName}";
         }
+        if (isRenamed)
+        {
+            tbSubj.FontWeight = FontWeights.SemiBold;
+        }
+        tbSubjStack.Children.Add(tbSubj);
+        if (isRenamed)
+        {
+            var orig = new TextBlock { Text = l.SubjectRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 9, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4,0,0,0) };
+            tbSubjStack.Children.Add(orig);
+        }
+        if (!string.IsNullOrEmpty(note))
+        {
+            var noteTb = new TextBlock { Text = note, Foreground = (Brush)FindResource("Bronze"), FontSize = 9, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4,2,0,0), FontStyle = FontStyles.Italic };
+            tbSubjStack.Children.Add(noteTb);
+        }
+
         var tbTeach = new TextBlock { Text = string.IsNullOrEmpty(l.TeacherRaw) ? "—" : l.TeacherRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         var tbRoom = new TextBlock { Text = string.IsNullOrEmpty(l.ClassroomRaw) ? "—" : l.ClassroomRaw, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 11, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-        var tbIcon = new TextBlock { Text = "●", Foreground = (Brush)FindResource("Bronze"), FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.3 };
+        var tbIcon = new TextBlock { Text = "●", Foreground = (Brush)FindResource("Bronze"), FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.15 };
 
-        Grid.SetColumn(tbNo, 0); Grid.SetColumn(tbTime, 1); Grid.SetColumn(tbSubj, 2); Grid.SetColumn(tbTeach, 3); Grid.SetColumn(tbRoom, 4); Grid.SetColumn(tbIcon, 5);
-        grid.Children.Add(tbNo); grid.Children.Add(tbTime); grid.Children.Add(tbSubj); grid.Children.Add(tbTeach); grid.Children.Add(tbRoom); grid.Children.Add(tbIcon);
+        // Action buttons
+        var actionPanel = new StackPanel { Orientation = Orientation.Vertical };
+        var btnRename = new Button { Content = "✎", Style = (Style)FindResource("GhostButton"), Padding = new Thickness(4,2,4,2), FontSize = 10, Margin = new Thickness(0,0,0,2), ToolTip = "Переименовать" };
+        btnRename.Click += (s, e) => OpenRenameDialog(l);
+        var btnHw = new Button { Content = "+", Style = (Style)FindResource("GhostButton"), Padding = new Thickness(4,2,4,2), FontSize = 10, ToolTip = "ДЗ" };
+        btnHw.Click += (s, e) => OpenHomeworkDialog(l, null);
+        actionPanel.Children.Add(btnRename);
+        actionPanel.Children.Add(btnHw);
 
-        border.Child = grid;
-        return border;
+        Grid.SetColumn(tbNo, 0); Grid.SetColumn(tbTime, 1); Grid.SetColumn(tbSubjStack, 2); Grid.SetColumn(tbTeach, 3); Grid.SetColumn(tbRoom, 4); Grid.SetColumn(tbIcon, 5); Grid.SetColumn(actionPanel, 6);
+        grid.Children.Add(tbNo); grid.Children.Add(tbTime); grid.Children.Add(tbSubjStack); grid.Children.Add(tbTeach); grid.Children.Add(tbRoom); grid.Children.Add(tbIcon); grid.Children.Add(actionPanel);
+
+        // Context menu for right-click
+        var cm = new ContextMenu();
+        var miRename = new MenuItem { Header = "Переименовать" };
+        miRename.Click += (s, e) => OpenRenameDialog(l);
+        var miReset = new MenuItem { Header = "Сбросить к оригиналу" };
+        miReset.Click += (s, e) => { var ovs = _db!.GetOverrides().Where(o => o.SubjectRawNormalized == ParityService.NormalizeSubject(l.SubjectRaw)).ToList(); foreach (var ov in ovs) _overrideService!.Remove(ov.Id); RenderCurrentView(); };
+        var miHw = new MenuItem { Header = "Добавить ДЗ" };
+        miHw.Click += (s, e) => OpenHomeworkDialog(l, null);
+        cm.Items.Add(miRename); cm.Items.Add(miReset); cm.Items.Add(miHw);
+        outer.ContextMenu = cm;
+        // Also handle mouse right click to open rename? Use outer.MouseRightButtonUp
+
+        outerStack.Children.Add(grid);
+
+        // Homework block under row
+        var homeworks = _homeworkService?.GetForSubject(l.SubjectRaw) ?? new List<Homework>();
+        // Sort: burning first, then approaching, far hidden? Spec: far hidden or dot, approaching gray, burning bold, done at bottom
+        var visibleHw = homeworks.Where(h => h.Status != "far" || false).OrderBy(h => h.Status == "done" ? 1 : 0).ThenBy(h => h.DueDateComputed).ToList();
+        // Actually far hidden: don't show if >1 lesson before due? For MVP, hide far, show dot? We'll hide far and only show approaching/burning/overdue/done
+        visibleHw = homeworks.Where(h => h.Status != "far").OrderBy(h => GetHomeworkOrder(h.Status)).ToList();
+        // If user wants to see all, we could show dot indicator but for now hide far
+
+        foreach (var hw in visibleHw)
+        {
+            var hwBorder = new Border
+            {
+                CornerRadius = new CornerRadius(3),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(6,3,6,3),
+                Margin = new Thickness(0,6,0,0)
+            };
+            // Style per status
+            Brush fg = (Brush)FindResource("Marble");
+            Brush bg = (Brush)FindResource("PanelAlt");
+            Brush borderBrush = (Brush)FindResource("BorderDim");
+            double opacity = 1;
+            FontWeight fw = FontWeights.Normal;
+            string icon = "●";
+            switch (hw.Status)
+            {
+                case "approaching":
+                    fg = (Brush)FindResource("MarbleDim");
+                    bg = Brushes.Transparent;
+                    borderBrush = (Brush)FindResource("BorderDim");
+                    break;
+                case "burning":
+                    fg = (Brush)FindResource("Marble");
+                    fw = FontWeights.Bold;
+                    bg = (Brush)FindResource("PanelAlt");
+                    borderBrush = (Brush)FindResource("BorderDim");
+                    break;
+                case "burning_urgent":
+                    fg = (Brush)FindResource("Bronze");
+                    fw = FontWeights.Bold;
+                    bg = (Brush)FindResource("PanelAlt");
+                    borderBrush = (Brush)FindResource("Bronze");
+                    icon = "🔥";
+                    break;
+                case "done":
+                    fg = (Brush)FindResource("MarbleDim");
+                    opacity = 0.5;
+                    bg = Brushes.Transparent;
+                    borderBrush = (Brush)FindResource("BorderDim");
+                    break;
+                case "overdue":
+                    fg = (Brush)FindResource("Cinnabar");
+                    fw = FontWeights.SemiBold;
+                    bg = (Brush)FindResource("PanelAlt");
+                    borderBrush = (Brush)FindResource("Cinnabar");
+                    icon = "⚠";
+                    break;
+                default:
+                    fg = (Brush)FindResource("MarbleDim");
+                    break;
+            }
+            hwBorder.Background = bg;
+            hwBorder.BorderBrush = borderBrush;
+            hwBorder.Opacity = opacity;
+
+            var hwGrid = new Grid();
+            hwGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
+            hwGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            hwGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+
+            var iconTb = new TextBlock { Text = icon, Foreground = fg, FontSize = 10, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, FontWeight = fw };
+            var textTb = new TextBlock { Text = hw.Text, Foreground = fg, FontSize = 11, TextWrapping = TextWrapping.Wrap, FontWeight = fw };
+            if (hw.Status == "done") textTb.TextDecorations = TextDecorations.Strikethrough;
+            var dueTb = new TextBlock { Text = hw.DueDateComputed?.ToString("dd.MM") ?? "—", Foreground = (Brush)FindResource("MarbleDim"), FontSize = 9, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+            if (hw.Status == "burning" || hw.Status == "burning_urgent") dueTb.Text = $"срок {hw.DueDateComputed:dd.MM}";
+
+            Grid.SetColumn(iconTb, 0); Grid.SetColumn(textTb, 1); Grid.SetColumn(dueTb, 2);
+            hwGrid.Children.Add(iconTb); hwGrid.Children.Add(textTb); hwGrid.Children.Add(dueTb);
+
+            hwBorder.Child = hwGrid;
+            hwBorder.Cursor = Cursors.Hand;
+            hwBorder.ToolTip = $"ДЗ: {hw.Text} · статус {hw.Status} · через {hw.TargetNthOccurrence} занятий";
+            // Click to mark done / edit
+            hwBorder.MouseLeftButtonUp += (s, e) => OpenHomeworkActionDialog(hw, l);
+            outerStack.Children.Add(hwBorder);
+        }
+
+        outer.Child = outerStack;
+        return outer;
+    }
+
+    private int GetHomeworkOrder(string status) => status switch
+    {
+        "burning_urgent" => 0,
+        "burning" => 1,
+        "overdue" => 2,
+        "approaching" => 3,
+        "far" => 4,
+        "done" => 5,
+        _ => 6
+    };
+
+    private Brush GetHomeworkBrush(string status) => status switch
+    {
+        "approaching" => (Brush)FindResource("MarbleDim"),
+        "burning" => (Brush)FindResource("Marble"),
+        "burning_urgent" => (Brush)FindResource("Bronze"),
+        "overdue" => (Brush)FindResource("Cinnabar"),
+        "done" => (Brush)FindResource("MarbleDim"),
+        _ => (Brush)FindResource("MarbleDim")
+    };
+
+    private void OpenRenameDialog(Lesson l)
+    {
+        if (_db == null || _overrideService == null) return;
+        string norm = ParityService.NormalizeSubject(l.SubjectRaw);
+        var existingGlobal = _db.GetOverrides().FirstOrDefault(o => o.SubjectRawNormalized == norm && o.Scope == "global");
+        var existingWeekday = _db.GetOverrides().FirstOrDefault(o => o.SubjectRawNormalized == norm && o.Scope == $"weekday:{l.DayOfWeek}");
+        // Prefer global if exists
+        var existing = existingGlobal ?? existingWeekday;
+        string currentDisplay = existing?.DisplayName ?? _overrideService.GetDisplayName(l.SubjectRaw, l.DayOfWeek);
+        string currentScope = existing?.Scope ?? "global";
+        string? note = existing?.Note;
+
+        var dlg = new RenameDialog(l.SubjectRaw, l.DayOfWeek, currentDisplay, note, currentScope);
+        dlg.Owner = this;
+        if (dlg.ShowDialog() == true)
+        {
+            _overrideService.AddOrUpdate(l.SubjectRaw, dlg.ScopeResult, dlg.DisplayNameResult, dlg.NoteResult);
+            RenderCurrentView();
+        }
+    }
+
+    private void OpenHomeworkDialog(Lesson l, Homework? existing)
+    {
+        if (_db == null || _homeworkService == null) return;
+        string subject = l.SubjectRaw;
+        Homework? hw = existing;
+        var dlg = new HomeworkDialog(subject, hw?.Text, hw?.TargetNthOccurrence ?? 1, (n) =>
+        {
+            // preview due date
+            var tmp = new Homework { SubjectRawNormalized = ParityService.NormalizeSubject(subject), CreatedAt = DateTime.Today, TargetNthOccurrence = n };
+            var due = _homeworkService.ComputeDueDate(tmp.SubjectRawNormalized, tmp.CreatedAt, n);
+            return due != null ? $"Срок: {due:dd.MM.yyyy} ({due:dddd})" : "Срок: — (нет занятий)";
+        });
+        dlg.Owner = this;
+        if (dlg.ShowDialog() == true)
+        {
+            if (hw == null)
+            {
+                _homeworkService.AddHomework(subject, dlg.TextResult, dlg.NResult, DateTime.Today);
+            }
+            else
+            {
+                _homeworkService.UpdateHomework(hw.Id, dlg.TextResult, dlg.NResult);
+            }
+            RenderCurrentView();
+        }
+    }
+
+    private void OpenHomeworkActionDialog(Homework hw, Lesson l)
+    {
+        var menu = new ContextMenu();
+        var miDone = new MenuItem { Header = hw.Status == "done" ? "Снять отметку" : "Отметить выполненным" };
+        miDone.Click += (s, e) => { _homeworkService?.MarkDone(hw.Id, hw.Status != "done"); RenderCurrentView(); };
+        var miEdit = new MenuItem { Header = "Редактировать" };
+        miEdit.Click += (s, e) => OpenHomeworkDialog(l, hw);
+        var miDel = new MenuItem { Header = "Удалить" };
+        miDel.Click += (s, e) => { _homeworkService?.Delete(hw.Id); RenderCurrentView(); };
+        menu.Items.Add(miDone); menu.Items.Add(miEdit); menu.Items.Add(miDel);
+        menu.IsOpen = true;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -415,15 +622,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Export_Click(object sender, RoutedEventArgs e)
-    {
-        StatusText.Text = "Экспорт — будет в Фазе 5";
-    }
-
-    private void Import_Click(object sender, RoutedEventArgs e)
-    {
-        StatusText.Text = "Импорт — будет в Фазе 5";
-    }
+    private void Export_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Экспорт — будет в Фазе 5";
+    private void Import_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Импорт — будет в Фазе 5";
 
     protected override void OnClosed(EventArgs e)
     {

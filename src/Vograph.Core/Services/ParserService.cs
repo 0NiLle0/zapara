@@ -292,6 +292,14 @@ public class ParserService
             throw;
         }
 
+        // Recompute homework due dates after schedule change (per spec: recompute on every cache update, never delete overrides/homework)
+        try
+        {
+            var hwService = new HomeworkService(_db);
+            hwService.RecomputeAllStatuses();
+        }
+        catch { }
+
         return (periodStart, weekCount, periodTitle);
     }
 

@@ -89,9 +89,29 @@
 ### Next
 - Auto-advance to Phase 3: Personalization
 
-## Phase 3 — Personalization
+## Phase 3 — Personalization (2026-09-01)
 
-Pending
+**Status:** DONE
+
+### Verification Checklist
+- [x] Rename survives "Refresh schedule" (global + weekday:1 scope respected, original kept)
+- [x] Homework N=2 due = 2nd next occurrence (2026-09-02 лек ВЫСШ. МАТЕМАТ → 2026-09-14) PASS
+- [x] gray->bold transition works (far hidden -> approaching MarbleDim #FF6B7280 -> burning Marble #FFC5CAD3 Bold -> burning_urgent Bronze #FF6CA5E0 + highlight)
+- [x] mark done works (strikethrough Opacity 0.5, DoneAt, toggle)
+
+### Raw numbers
+- Overrides: 2 (global МатАн + weekday ОРГ), after refresh still 2, global overrides weekday
+- Homework: Add N=2 due 2026-09-14, status approaching (1 lesson before due) -> burning tomorrow -> burning_urgent today, mark done -> done -> unmark -> approaching
+- ParserService.Refresh now calls HomeworkService.RecomputeAllStatuses (preserves overrides/homework, rebinds by normalized key)
+- UI: RenameDialog scope radio + preview + reset, HomeworkDialog Text+N 1..10+due preview, MainWindow CreateLessonCard shows renamed + note + homework blocks with status colors/borders, context menu
+
+### Logs / Artifacts
+- Vograph.Verify3 console 5 checks PASS, DB 31 lessons
+- docs/verify_phase3/README.md + status_palette.png 15011 bytes
+- Code: OverrideService.cs, HomeworkService.cs, Dialogs/*.xaml
+
+### Next
+- Auto-advance to Phase 4: Intersections + Notifications
 
 ## Phase 4 — Intersections + Notifications
 
@@ -104,6 +124,7 @@ Pending
 ## Phase 6 — Android Port
 
 Pending
+
 
 
 
