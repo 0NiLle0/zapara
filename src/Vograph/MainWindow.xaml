@@ -22,7 +22,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Vertical">
                     <StackPanel Orientation="Horizontal">
-                        <Button x:Name="LeftPanelToggle" Content="≡" Style="{StaticResource GhostButton}" Padding="0" FontSize="19" Width="34" Height="34" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="Меню"/>
+                        <Button x:Name="LeftPanelToggle" Content="≡" Style="{StaticResource GhostButton}" Padding="0" FontSize="19" Width="34" Height="34" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="Menu"/>
                         <TextBlock Text="VOG-ZAVTRA" Style="{StaticResource Title}" VerticalAlignment="Center"/>
                         <TextBlock x:Name="HeaderHint" Text="Группа — · —" Foreground="{StaticResource MarbleDim}" FontSize="10" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     </StackPanel>
@@ -30,51 +30,59 @@
                         <TextBlock x:Name="ElevationHint" Text="Расписание Военмеха · завтра по умолчанию" Style="{StaticResource Dim}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
-                <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="⚙" Style="{StaticResource GearButton}" VerticalAlignment="Top" ToolTip="Настройки"/>
+                <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="⚙" Style="{StaticResource GearButton}" VerticalAlignment="Top" ToolTip="Settings"/>
                 <Popup IsOpen="{Binding IsChecked, ElementName=SettingsButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" HorizontalOffset="-340" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Focusable="False">
                     <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}" BorderThickness="1" CornerRadius="3" Padding="0" Width="360" MaxHeight="620">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                         <StackPanel>
-                            <TextBlock Text="НАСТРОЙКИ" Style="{StaticResource SectionLabel}"/>
-                            <TextBlock Text="Моя группа" Style="{StaticResource Dim}" Margin="0,6,0,0"/>
+                            <TextBlock x:Name="TxtSettingsTitle" Text="НАСТРОЙКИ" Style="{StaticResource SectionLabel}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock x:Name="LblLanguage" Text="Язык" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="LanguagePicker" Width="140" Height="24" Margin="8,0,0,0" SelectionChanged="LanguagePicker_Changed">
+                                    <ComboBoxItem Content="Русский" Tag="ru"/>
+                                    <ComboBoxItem Content="English" Tag="en"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock x:Name="LblMyGroup" Text="Моя группа" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
                             <ComboBox x:Name="SettingsGroupPicker" Margin="0,4,0,0" Height="26"/>
                             <CheckBox x:Name="ChkInvertParity" Content="Инвертировать четность недели" Foreground="{StaticResource Marble}" FontSize="11" Margin="0,10,0,0"/>
-                            <TextBlock Text="Если вуз сдвинул неделю, включите инверсию." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <TextBlock x:Name="TxtInvertHint" Text="Если вуз сдвинул неделю, включите инверсию." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
-                            <TextBlock Text="ДРУЗЬЯ (до 5)" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                            <TextBlock x:Name="LblFriendsTitle" Text="ДРУЗЬЯ (до 5)" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
                             <StackPanel x:Name="FriendsListPanel" Margin="0,6,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                 <ComboBox x:Name="FriendGroupPicker" Width="180" Height="24" Margin="0,0,6,0"/>
-                                <Button Content="+ Добавить" Style="{StaticResource GhostButton}" Click="AddFriend_Click"/>
+                                <Button x:Name="BtnAddFriend" Content="+ Добавить" Style="{StaticResource GhostButton}" Click="AddFriend_Click"/>
                             </StackPanel>
-                            <TextBlock Text="Цвет — один из 5, иконка внутри ячейки." Style="{StaticResource Dim}" FontSize="9" Margin="0,4,0,0"/>
-                            <TextBlock Text="Строгость пересечений" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="TxtFriendsHint" Text="Цвет — один из 5, иконка внутри ячейки." Style="{StaticResource Dim}" FontSize="9" Margin="0,4,0,0"/>
+                            <TextBlock x:Name="LblStrictnessTitle" Text="Строгость пересечений" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
                             <Slider x:Name="StrictnessSlider" Minimum="0" Maximum="100" Value="50" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="Strictness_Changed" Margin="0,4,0,0"/>
                             <Grid Margin="0,2,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="0 — любое время" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="0"/>
-                                <TextBlock Text="40 — корпус" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="1" HorizontalAlignment="Center"/>
-                                <TextBlock Text="100 — аудитория" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="2" HorizontalAlignment="Right"/>
+                                <TextBlock x:Name="TxtStrict0" Text="0 — любое время" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="0"/>
+                                <TextBlock x:Name="TxtStrict40" Text="40 — корпус" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="1" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="TxtStrict100" Text="100 — аудитория" Foreground="{StaticResource MarbleDim}" FontSize="9" Grid.Column="2" HorizontalAlignment="Right"/>
                             </Grid>
                             <TextBlock x:Name="StrictnessLabel" Text="50 — корпус" Foreground="{StaticResource Bronze}" FontSize="10" Margin="0,2,0,0"/>
                             <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
-                            <TextBlock Text="УВЕДОМЛЕНИЯ" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
+                            <TextBlock x:Name="LblNotificationsTitle" Text="УВЕДОМЛЕНИЯ" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                <TextBlock Text="Время 1" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="LblTime1" Text="Время 1" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBox x:Name="NotifyTime1Box" Width="60" Height="22" Tag="20:00" Margin="0,0,6,0"/>
-                                <TextBlock Text="Время 2" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="LblTime2" Text="Время 2" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <TextBox x:Name="NotifyTime2Box" Width="60" Height="22" Tag="07:30"/>
                             </StackPanel>
-                            <Button Content="Сохранить времена" Style="{StaticResource GhostButton}" Click="SaveNotifyTimes_Click" Margin="0,6,0,0" HorizontalAlignment="Left"/>
-                            <TextBlock Text="Текст использует переименованные названия и помечает горящее ДЗ." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="9"/>
+                            <Button x:Name="BtnSaveTimes" Content="Сохранить времена" Style="{StaticResource GhostButton}" Click="SaveNotifyTimes_Click" Margin="0,6,0,0" HorizontalAlignment="Left"/>
+                            <TextBlock x:Name="TxtNotifHint" Text="Текст использует переименованные названия и помечает горящее ДЗ." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0" FontSize="9"/>
                             <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
-                            <TextBlock Text="СИНХРОНИЗАЦИЯ" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
+                            <TextBlock x:Name="LblSyncTitle" Text="СИНХРОНИЗАЦИЯ" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                <Button Content="Экспорт" Style="{StaticResource GhostButton}" Click="Export_Click"/>
-                                <Button Content="Импорт" Style="{StaticResource GhostButton}" Margin="6,0,0,0" Click="Import_Click"/>
+                                <Button x:Name="BtnExport" Content="Экспорт" Style="{StaticResource GhostButton}" Click="Export_Click"/>
+                                <Button x:Name="BtnImport" Content="Импорт" Style="{StaticResource GhostButton}" Margin="6,0,0,0" Click="Import_Click"/>
                             </StackPanel>
                             <TextBlock x:Name="LastUpdatedText" Text="Обновлено: —" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
-                            <Button Content="Обновить расписание" Style="{StaticResource FerryButton}" Margin="0,10,0,0" Click="Refresh_Click"/>
+                            <TextBlock x:Name="LastAutoCheckText" Text="Автопроверка: —" Style="{StaticResource Dim}" Margin="0,2,0,0" FontSize="9"/>
+                            <Button x:Name="BtnRefreshSettings" Content="Обновить расписание" Style="{StaticResource FerryButton}" Margin="0,10,0,0" Click="Refresh_Click"/>
                         </StackPanel>
                         </ScrollViewer>
                     </Border>
@@ -97,10 +105,10 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="ГРУППА" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="LblGroup" Text="ГРУППА" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <ComboBox x:Name="GroupPicker" Grid.Column="1" MinWidth="180" MaxWidth="260" HorizontalAlignment="Left" SelectionChanged="GroupPicker_Changed"/>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Обновить" Style="{StaticResource GhostButton}" Click="Refresh_Click" Margin="0,0,6,0"/>
+                        <Button x:Name="BtnRefresh" Content="Обновить" Style="{StaticResource GhostButton}" Click="Refresh_Click" Margin="0,0,6,0"/>
                         <CheckBox x:Name="ChkOnlyCurrentWeek" Content="Только текущая неделя" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
@@ -115,7 +123,7 @@
                 </Border>
             </StackPanel>
             <StackPanel x:Name="WeekParityPanel" Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
-                <TextBlock Text="Неделя:" Foreground="{StaticResource MarbleDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock x:Name="LblWeek" Text="Неделя:" Foreground="{StaticResource MarbleDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <Button x:Name="BtnWeekOdd" Content="Нечетная" Style="{StaticResource GhostButton}" Padding="10,4" Click="WeekOdd_Click"/>
                 <Button x:Name="BtnWeekEven" Content="Четная" Style="{StaticResource GhostButton}" Padding="10,4" Margin="6,0,0,0" Click="WeekEven_Click"/>
             </StackPanel>

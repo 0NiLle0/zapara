@@ -175,14 +175,18 @@ No JS post-processing. `paramCurrentWeekOnly` bound to checkbox `studsCbCurrentW
 
 ---
 
-## 6. Caching & Resilience
+## 6. Caching & Resilience + Auto-refresh (v3)
 
 - **Cache raw XML** to `vograph.db` or file `schedule_cache`. Store fetch timestamp.
 - On parse failure (XML malformed, network 404), show last cache + "stale" badge.
 - Parser must be XSL-independent: read `TimetableGroup50.xml` via `XmlReader`/`XDocument`, not via rendered HTML.
 - Encoding: current file UTF-8 without BOM; historic archives UTF-16LE with BOM `FF FE`. Detect BOM, fallback to UTF-8.
-- Background refresh every 1-3 days is enough (semester updates once, ad-hoc edits happen). No hourly polling.
+- **Auto-refresh (v3, §2):** On app start + background timer every 24h check `TimetableGroup50.xml` via `HEAD` + `If-Modified-Since` / `Last-Modified`. Respect 1-3 day interval, do not poll hourly. If `304 Not Modified` → skip; if `200` and `Last-Modified` newer → fetch full, re-parse, keep `overrides/homework` intact, update `settings.lastFetchedAt` and `settings.lastAutoCheckAt`, log to `data/runs/autorefresh-YYYYMMDD.log`. Show `last updated` badge + `last auto-check` + manual `Refresh now`.
 - Keep `raw_html`/`raw_xml` column for diff.
+
+**Settings extension v3:** `settings` now includes `language TEXT DEFAULT 'ru'` (ru|en, per §2 i18n) and `lastAutoCheckAt TEXT`. Migration via `ALTER TABLE ADD COLUMN` TryAddColumn. `I18nService` (`src/Vograph.Core/Services/I18nService.cs`) holds ru/en dictionaries, `T(key)` and `FormatDate/Day/Parity`, `LanguageChanged` event, persists to `settings.language`, switch instantly without restart.
+
+**Bilingual (v3, §6):** All UI strings via `I18nService.T()` / `Resources/ru.xaml`+`en.xaml` (no hardcoded Russian in XAML code-behind). Date/weekday/parity/notifications respect `settings.language`. Reports stay English.
 
 ---
 

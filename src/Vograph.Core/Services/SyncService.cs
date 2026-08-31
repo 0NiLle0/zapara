@@ -123,12 +123,16 @@ VALUES (@s,@t,@ca,@n,@due,@st,@da)";
             curSettings.MyGroupId = payload.Settings.MyGroupId;
         }
         // Merge notify times and strictness if payload newer? Use ExportedAt > LastSyncAt
+        // Language: keep receiver's choice per doc (do not overwrite) — documented in docs/API.md §9
+        // If you want to sync language, uncomment next line: curSettings.Language = payload.Settings.Language;
         if (payload.ExportedAt > (curSettings.LastSyncAt ?? DateTime.MinValue))
         {
             if (!string.IsNullOrEmpty(payload.Settings.NotifyTime1)) curSettings.NotifyTime1 = payload.Settings.NotifyTime1;
             if (!string.IsNullOrEmpty(payload.Settings.NotifyTime2)) curSettings.NotifyTime2 = payload.Settings.NotifyTime2;
             curSettings.IntersectionStrictness = payload.Settings.IntersectionStrictness;
             curSettings.ParityInvert = payload.Settings.ParityInvert;
+            // language sync is optional; we preserve receiver's choice, but also support lastWriteWins if needed:
+            // if (!string.IsNullOrEmpty(payload.Settings.Language)) curSettings.Language = payload.Settings.Language;
         }
         curSettings.LastSyncAt = DateTime.UtcNow;
         _db.SaveSettings(curSettings);

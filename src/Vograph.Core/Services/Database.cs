@@ -87,23 +87,41 @@ CREATE TABLE IF NOT EXISTS settings (
     notifyTime1 TEXT,
     notifyTime2 TEXT,
     intersectionStrictness INTEGER NOT NULL DEFAULT 50,
+    language TEXT NOT NULL DEFAULT 'ru',
     lastSyncAt TEXT,
     lastFetchedAt TEXT,
+    lastAutoCheckAt TEXT,
     weekCount INTEGER NOT NULL DEFAULT 2,
     periodTitle TEXT,
     periodStart TEXT
 );
-INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCount) VALUES (1, 0, 50, 2);
+INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCount, language) VALUES (1, 0, 50, 2, 'ru');
+-- migrations for existing DBs (v2 -> v3)
+-- add columns if missing (no error if exists, use try via separate statements executed below)
 ";
         using var cmd = _conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
+        // lightweight migrations: add missing columns safely
+        TryAddColumn("settings", "language", "TEXT NOT NULL DEFAULT 'ru'");
+        TryAddColumn("settings", "lastAutoCheckAt", "TEXT");
+    }
+
+    private void TryAddColumn(string table, string column, string definition)
+    {
+        try
+        {
+            using var c = _conn.CreateCommand();
+            c.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+            c.ExecuteNonQuery();
+        }
+        catch { /* column already exists */ }
     }
 
     public Settings GetSettings()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, lastSyncAt, lastFetchedAt, weekCount, periodTitle, periodStart FROM settings WHERE id=1";
+        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, language, lastSyncAt, lastFetchedAt, lastAutoCheckAt, weekCount, periodTitle, periodStart FROM settings WHERE id=1";
         using var r = cmd.ExecuteReader();
         if (!r.Read()) return new Settings();
         return new Settings
@@ -113,11 +131,13 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
             NotifyTime1 = r.IsDBNull(2) ? null : r.GetString(2),
             NotifyTime2 = r.IsDBNull(3) ? null : r.GetString(3),
             IntersectionStrictness = r.GetInt32(4),
-            LastSyncAt = r.IsDBNull(5) ? null : DateTime.TryParse(r.GetString(5), out var dt) ? dt : null,
-            LastFetchedAt = r.IsDBNull(6) ? null : r.GetString(6),
-            WeekCount = r.GetInt32(7),
-            PeriodTitle = r.IsDBNull(8) ? null : r.GetString(8),
-            PeriodStart = r.IsDBNull(9) ? null : r.GetString(9)
+            Language = r.IsDBNull(5) ? "ru" : r.GetString(5),
+            LastSyncAt = r.IsDBNull(6) ? null : DateTime.TryParse(r.GetString(6), out var dt) ? dt : null,
+            LastFetchedAt = r.IsDBNull(7) ? null : r.GetString(7),
+            LastAutoCheckAt = r.IsDBNull(8) ? null : r.GetString(8),
+            WeekCount = r.GetInt32(9),
+            PeriodTitle = r.IsDBNull(10) ? null : r.GetString(10),
+            PeriodStart = r.IsDBNull(11) ? null : r.GetString(11)
         };
     }
 
@@ -127,7 +147,7 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
         cmd.CommandText = @"
 UPDATE settings SET
     myGroupId=@g, parityInvert=@inv, notifyTime1=@t1, notifyTime2=@t2,
-    intersectionStrictness=@strict, lastSyncAt=@sync, lastFetchedAt=@lf,
+    intersectionStrictness=@strict, language=@lang, lastSyncAt=@sync, lastFetchedAt=@lf, lastAutoCheckAt=@lac,
     weekCount=@wc, periodTitle=@pt, periodStart=@ps
 WHERE id=1";
         cmd.Parameters.AddWithValue("@g", (object?)s.MyGroupId ?? DBNull.Value);
@@ -135,8 +155,10 @@ WHERE id=1";
         cmd.Parameters.AddWithValue("@t1", (object?)s.NotifyTime1 ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@t2", (object?)s.NotifyTime2 ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@strict", s.IntersectionStrictness);
+        cmd.Parameters.AddWithValue("@lang", s.Language ?? "ru");
         cmd.Parameters.AddWithValue("@sync", s.LastSyncAt?.ToString("o") ?? (object)DBNull.Value);
         cmd.Parameters.AddWithValue("@lf", (object?)s.LastFetchedAt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@lac", (object?)s.LastAutoCheckAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@wc", s.WeekCount);
         cmd.Parameters.AddWithValue("@pt", (object?)s.PeriodTitle ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ps", (object?)s.PeriodStart ?? DBNull.Value);

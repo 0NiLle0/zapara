@@ -23,6 +23,8 @@ public partial class MainWindow : Window
     private NotificationService? _notificationService;
     private DispatcherTimer? _notifyTimer;
     private readonly string[] _friendColors = new[] { "#FF6CA5E0", "#FF98C379", "#FFE06C75", "#FFC678DD", "#FFF2C55C" };
+    private I18nService? _i18n;
+    private AutoRefreshService? _autoRefresh;
     private string _currentTab = "Tomorrow"; // Today|Tomorrow|Week
     private int _weekParity = 1; // 1 odd, 2 even for week view
     private bool _isLoading = false;
@@ -43,12 +45,16 @@ public partial class MainWindow : Window
         try
         {
             _db = new Database(_dbPath);
+            var settings0 = _db.GetSettings();
+            _i18n = new I18nService(settings0.Language ?? "ru");
+            _i18n.LanguageChanged += ApplyLanguage;
             _parser = new ParserService(_db);
             _schedule = new ScheduleService(_db);
             _overrideService = new OverrideService(_db);
             _homeworkService = new HomeworkService(_db);
             _intersectionService = new IntersectionService(_db);
-            _notificationService = new NotificationService(_db, _overrideService, _homeworkService, _schedule);
+            _notificationService = new NotificationService(_db, _overrideService, _homeworkService, _schedule, _i18n);
+            _autoRefresh = new AutoRefreshService(_db, _parser);
             // Recompute homework statuses on start
             try { _homeworkService.RecomputeAllStatuses(); } catch { }
 
@@ -56,11 +62,21 @@ public partial class MainWindow : Window
             LoadGroups();
             LoadFriendsUI();
             LoadNotificationUI();
+            // Language picker sync
+            LanguagePicker.SelectionChanged -= LanguagePicker_Changed;
+            foreach (ComboBoxItem it in LanguagePicker.Items)
+            {
+                if ((it.Tag as string) == _i18n.Language) { LanguagePicker.SelectedItem = it; break; }
+            }
+            LanguagePicker.SelectionChanged += LanguagePicker_Changed;
+            ApplyLanguage();
+            _autoRefresh.Start();
             StartNotifyTimer();
             SelectInitialGroup();
             UpdateParityBadge(DateTime.Today.AddDays(_currentTab == "Tomorrow" ? 1 : 0));
             RenderCurrentView();
-            StatusText.Text = "Готово";
+            StatusText.Text = _i18n.T("ready");
+            UpdateLastAutoCheckText();
         }
         catch (Exception ex)
         {
@@ -173,6 +189,88 @@ public partial class MainWindow : Window
         _db.SaveSettings(s);
         try { _homeworkService?.RecomputeAllStatuses(); } catch { }
         RenderCurrentView();
+    }
+
+    private void UpdateLastAutoCheckText()
+    {
+        if (_db == null || _i18n == null) return;
+        var s = _db.GetSettings();
+        string last = s.LastAutoCheckAt ?? s.LastFetchedAt ?? "—";
+        if (DateTime.TryParse(last, out var dt)) last = dt.ToString(_i18n.Language == "ru" ? "dd.MM.yyyy HH:mm" : "yyyy-MM-dd HH:mm");
+        if (LastAutoCheckText != null) LastAutoCheckText.Text = _i18n.T("lastAutoCheck", last);
+        if (LastUpdatedText != null)
+        {
+            string upd = s.LastFetchedAt ?? "—";
+            if (DateTime.TryParse(upd, out var d2)) upd = d2.ToString(_i18n.Language == "ru" ? "dd.MM.yyyy HH:mm" : "yyyy-MM-dd HH:mm");
+            LastUpdatedText.Text = _i18n.T("updated", upd);
+        }
+    }
+
+    private void ApplyLanguage()
+    {
+        if (_i18n == null) return;
+        // Header
+        if (HeaderHint != null && _db != null)
+        {
+            var g = GroupPicker?.SelectedItem as Group ?? _db.GetGroup(_db.GetSettings().MyGroupId ?? "");
+            string grp = g?.Name ?? "—";
+            bool odd = IsOddWeek(DateTime.Today);
+            string parity = _i18n.FormatParity(odd);
+            HeaderHint.Text = _i18n.T("headerHint", grp, parity);
+        }
+        if (ElevationHint != null) ElevationHint.Text = _i18n.T("headerSub");
+        if (TxtSettingsTitle != null) TxtSettingsTitle.Text = _i18n.T("settings");
+        if (LblLanguage != null) LblLanguage.Text = _i18n.T("language");
+        if (LblMyGroup != null) LblMyGroup.Text = _i18n.T("myGroup");
+        if (ChkInvertParity != null) ChkInvertParity.Content = _i18n.T("invertParity");
+        if (TxtInvertHint != null) TxtInvertHint.Text = _i18n.T("invertHint");
+        if (LblFriendsTitle != null) LblFriendsTitle.Text = _i18n.T("friends");
+        if (TxtFriendsHint != null) TxtFriendsHint.Text = _i18n.T("friendsHint");
+        if (LblStrictnessTitle != null) LblStrictnessTitle.Text = _i18n.T("strictness");
+        if (TxtStrict0 != null) TxtStrict0.Text = _i18n.T("strict0");
+        if (TxtStrict40 != null) TxtStrict40.Text = _i18n.T("strict40");
+        if (TxtStrict100 != null) TxtStrict100.Text = _i18n.T("strict100");
+        if (LblNotificationsTitle != null) LblNotificationsTitle.Text = _i18n.T("notifications");
+        if (LblTime1 != null) LblTime1.Text = _i18n.T("time1");
+        if (LblTime2 != null) LblTime2.Text = _i18n.T("time2");
+        if (BtnSaveTimes != null) BtnSaveTimes.Content = _i18n.T("saveTimes");
+        if (TxtNotifHint != null) TxtNotifHint.Text = _i18n.T("notifHint");
+        if (LblSyncTitle != null) LblSyncTitle.Text = _i18n.T("sync");
+        if (BtnExport != null) BtnExport.Content = _i18n.T("export");
+        if (BtnImport != null) BtnImport.Content = _i18n.T("import");
+        if (BtnRefreshSettings != null) BtnRefreshSettings.Content = _i18n.T("refresh");
+        if (LblGroup != null) LblGroup.Text = _i18n.T("group");
+        if (BtnRefresh != null) BtnRefresh.Content = _i18n.T("refresh");
+        if (ChkOnlyCurrentWeek != null) ChkOnlyCurrentWeek.Content = _i18n.T("onlyCurrentWeek");
+        if (BtnToday != null) BtnToday.Content = _i18n.T("today");
+        if (BtnTomorrow != null) BtnTomorrow.Content = _i18n.T("tomorrow");
+        if (BtnWeek != null) BtnWeek.Content = _i18n.T("week");
+        if (LblWeek != null) LblWeek.Text = _i18n.T("weekLabel");
+        if (BtnWeekOdd != null) BtnWeekOdd.Content = _i18n.T("weekOdd");
+        if (BtnWeekEven != null) BtnWeekEven.Content = _i18n.T("weekEven");
+        if (EmptyText != null) EmptyText.Text = _i18n.T("noLessons");
+        if (BtnAddFriend != null) BtnAddFriend.Content = _i18n.T("export").Contains("Export") ? "+ Add" : "+ Добавить"; // fallback
+        // Status
+        if (StatusText != null && StatusText.Text == "Готово") StatusText.Text = _i18n.T("ready");
+        if (StaleBadge != null) StaleBadge.Text = _i18n.T("stale");
+        UpdateLastAutoCheckText();
+        // Re-render to update dates/parity in current language
+        UpdateParityBadge(_currentTab == "Today" ? DateTime.Today : _currentTab == "Tomorrow" ? DateTime.Today.AddDays(1) : DateTime.Today);
+        RenderCurrentView();
+    }
+
+    private void LanguagePicker_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_db == null || _i18n == null) return;
+        if (LanguagePicker.SelectedItem is ComboBoxItem it && it.Tag is string lang)
+        {
+            if (_i18n.Language == lang) return;
+            _i18n.SetLanguage(lang);
+            var s = _db.GetSettings();
+            s.Language = lang;
+            _db.SaveSettings(s);
+            // ApplyLanguage will be called via event
+        }
     }
 
     private void LoadFriendsUI()
@@ -324,17 +422,16 @@ public partial class MainWindow : Window
 
     private void UpdateParityBadge(DateTime date)
     {
+        if (_i18n == null) return;
         bool odd = IsOddWeek(date);
-        ParityText.Text = odd ? "НЕЧЕТНАЯ" : "ЧЕТНАЯ";
+        ParityText.Text = _i18n.FormatParityBadge(odd);
         ParityBadge.Background = odd ? (Brush)FindResource("PanelAlt") : (Brush)FindResource("Panel");
-        string[] days = { "Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота" };
-        int dow = (int)date.DayOfWeek;
-        string dayName = days[dow];
-        DateHeader.Text = $"{date:dd.MM.yyyy} · {dayName}";
+        string dayName = _i18n.FormatDayFull(date);
+        DateHeader.Text = $"{_i18n.FormatDate(date)} · {dayName}";
         if (_currentTab == "Week")
         {
-            DateHeader.Text = _weekParity == 1 ? "Нечетная неделя" : "Четная неделя";
-            ParityText.Text = _weekParity == 1 ? "НЕЧЕТНАЯ" : "ЧЕТНАЯ";
+            DateHeader.Text = _weekParity == 1 ? _i18n.T("weekOdd") + " " + _i18n.T("week").ToLower() : _i18n.T("weekEven") + " " + _i18n.T("week").ToLower();
+            ParityText.Text = _i18n.FormatParityBadge(_weekParity == 1);
         }
     }
 
@@ -359,7 +456,7 @@ public partial class MainWindow : Window
         var lessons = _schedule.GetSchedule(date, gid);
         if (lessons.Count == 0)
         {
-            EmptyText.Text = "Нет занятий";
+            EmptyText.Text = _i18n?.T("noLessons") ?? "Нет занятий";
             EmptyText.Visibility = Visibility.Visible;
             SchedulePanel.Children.Add(EmptyText);
             return;
@@ -390,11 +487,14 @@ public partial class MainWindow : Window
             var lessons = _db.GetLessons(gid, dow, parity);
             var dayCard = new Border { Style = (Style)FindResource("Card"), Margin = new Thickness(4), Padding = new Thickness(7) };
             var stack = new StackPanel();
-            var title = new TextBlock { Text = ParityService.DayNumberToTitle(dow).ToUpper(), Style = (Style)FindResource("SectionLabel"), Margin = new Thickness(0,0,0,6) };
+            string dayKey = dow switch { 1=>"mon",2=>"tue",3=>"wed",4=>"thu",5=>"fri",6=>"sat",_=>"mon"};
+            string dayTitle = _i18n != null ? _i18n.T(dayKey).ToUpper() : ParityService.DayNumberToTitle(dow).ToUpper();
+            var title = new TextBlock { Text = dayTitle, Style = (Style)FindResource("SectionLabel"), Margin = new Thickness(0,0,0,6) };
             stack.Children.Add(title);
             if (lessons.Count == 0)
             {
-                stack.Children.Add(new TextBlock { Text = "Нет занятий", Foreground = (Brush)FindResource("MarbleDim"), FontSize = 10, Margin = new Thickness(0,4,0,0) });
+                string noLessons = _i18n?.T("noLessons") ?? "Нет занятий";
+                stack.Children.Add(new TextBlock { Text = noLessons, Foreground = (Brush)FindResource("MarbleDim"), FontSize = 10, Margin = new Thickness(0,4,0,0) });
             }
             else
             {
@@ -402,9 +502,9 @@ public partial class MainWindow : Window
                 hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(45) });
                 hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 hdr.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                var th1 = new TextBlock { Text = "Время", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
-                var th2 = new TextBlock { Text = "Предмет", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
-                var th3 = new TextBlock { Text = "Ауд.", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
+                var th1 = new TextBlock { Text = _i18n?.T("colTime") ?? "Время", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
+                var th2 = new TextBlock { Text = _i18n?.T("colSubject") ?? "Предмет", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
+                var th3 = new TextBlock { Text = _i18n?.T("colRoom") ?? "Ауд.", Foreground = (Brush)FindResource("Bronze"), FontSize = 9, FontWeight = FontWeights.SemiBold };
                 Grid.SetColumn(th1, 0); Grid.SetColumn(th2, 1); Grid.SetColumn(th3, 2);
                 hdr.Children.Add(th1); hdr.Children.Add(th2); hdr.Children.Add(th3);
                 stack.Children.Add(hdr);
@@ -450,7 +550,7 @@ public partial class MainWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(20) });
-        var headers = new[] { "№", "Время", "Предмет", "Преподаватель", "Ауд./Корп.", "·" };
+        string[] headers = _i18n != null ? new[] { _i18n.T("colNo"), _i18n.T("colTime"), _i18n.T("colSubject"), _i18n.T("colTeacher"), _i18n.T("colRoom"), "·" } : new[] { "№", "Время", "Предмет", "Преподаватель", "Ауд./Корп.", "·" };
         for (int i = 0; i < headers.Length; i++)
         {
             var tb = new TextBlock { Text = headers[i], Foreground = (Brush)FindResource("Bronze"), FontSize = 10, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
@@ -690,7 +790,7 @@ public partial class MainWindow : Window
         string currentScope = existing?.Scope ?? "global";
         string? note = existing?.Note;
 
-        var dlg = new RenameDialog(l.SubjectRaw, l.DayOfWeek, currentDisplay, note, currentScope);
+        var dlg = new RenameDialog(l.SubjectRaw, l.DayOfWeek, currentDisplay, note, currentScope, _i18n);
         dlg.Owner = this;
         if (dlg.ShowDialog() == true)
         {
@@ -706,11 +806,14 @@ public partial class MainWindow : Window
         Homework? hw = existing;
         var dlg = new HomeworkDialog(subject, hw?.Text, hw?.TargetNthOccurrence ?? 1, (n) =>
         {
-            // preview due date
             var tmp = new Homework { SubjectRawNormalized = ParityService.NormalizeSubject(subject), CreatedAt = DateTime.Today, TargetNthOccurrence = n };
             var due = _homeworkService.ComputeDueDate(tmp.SubjectRawNormalized, tmp.CreatedAt, n);
+            if (_i18n != null)
+            {
+                return due != null ? _i18n.T("hwDue", due.Value.ToString(_i18n.Language=="ru"?"dd.MM.yyyy":"yyyy-MM-dd") + " (" + _i18n.FormatDayFull(due.Value) + ")") : _i18n.T("hwNoDate");
+            }
             return due != null ? $"Срок: {due:dd.MM.yyyy} ({due:dddd})" : "Срок: — (нет занятий)";
-        });
+        }, _i18n);
         dlg.Owner = this;
         if (dlg.ShowDialog() == true)
         {
@@ -814,6 +917,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _autoRefresh?.Dispose();
+        _notifyTimer?.Stop();
         _db?.Dispose();
         base.OnClosed(e);
     }

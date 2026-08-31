@@ -1,0 +1,161 @@
+namespace Vograph.Core.Services;
+
+public class I18nService
+{
+    private string _lang = "ru";
+    public string Language => _lang;
+    public event Action? LanguageChanged;
+
+    private readonly Dictionary<string, Dictionary<string, string>> _dict = new()
+    {
+        ["ru"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            // Header
+            ["appTitle"] = "VOG-ZAVTRA",
+            ["headerHint"] = "Группа {0} · {1} неделя",
+            ["headerSub"] = "Расписание Военмеха · завтра по умолчанию",
+            ["odd"] = "нечетная",
+            ["even"] = "четная",
+            ["oddShort"] = "нечет",
+            ["evenShort"] = "чет",
+            ["oddBadge"] = "НЕЧЕТНАЯ",
+            ["evenBadge"] = "ЧЕТНАЯ",
+            // Days full
+            ["mon"] = "Понедельник", ["tue"] = "Вторник", ["wed"] = "Среда", ["thu"] = "Четверг", ["fri"] = "Пятница", ["sat"] = "Суббота", ["sun"] = "Воскресенье",
+            ["monShort"] = "Пн", ["tueShort"] = "Вт", ["wedShort"] = "Ср", ["thuShort"] = "Чт", ["friShort"] = "Пт", ["satShort"] = "Сб", ["sunShort"] = "Вс",
+            // Tabs
+            ["today"] = "Сегодня", ["tomorrow"] = "Завтра", ["week"] = "Неделя",
+            ["noLessons"] = "Нет занятий",
+            ["noLessonsShort"] = "Пар нет",
+            // Table
+            ["colNo"] = "№", ["colTime"] = "Время", ["colSubject"] = "Предмет", ["colTeacher"] = "Преподаватель", ["colRoom"] = "Ауд./Корп.", ["colType"] = "Тип",
+            // Settings
+            ["settings"] = "НАСТРОЙКИ",
+            ["myGroup"] = "Моя группа",
+            ["invertParity"] = "Инвертировать четность недели",
+            ["invertHint"] = "Если вуз сдвинул неделю, включите инверсию.",
+            ["friends"] = "ДРУЗЬЯ (до 5)",
+            ["friendsHint"] = "Цвет — один из 5, иконка внутри ячейки.",
+            ["strictness"] = "Строгость пересечений",
+            ["strict0"] = "0 — любое время", ["strict40"] = "40 — корпус", ["strict100"] = "100 — аудитория",
+            ["notifications"] = "УВЕДОМЛЕНИЯ",
+            ["notifHint"] = "Текст использует переименованные названия и помечает горящее ДЗ.",
+            ["time1"] = "Время 1", ["time2"] = "Время 2", ["saveTimes"] = "Сохранить времена",
+            ["sync"] = "СИНХРОНИЗАЦИЯ", ["export"] = "Экспорт", ["import"] = "Импорт", ["refresh"] = "Обновить расписание", ["updated"] = "Обновлено: {0}", ["lastAutoCheck"] = "Автопроверка: {0}",
+            ["language"] = "Язык", ["langRu"] = "Русский", ["langEn"] = "English",
+            ["auto"] = "авто", ["invert"] = "инвертировать",
+            ["parity"] = "Четность",
+            ["group"] = "ГРУППА",
+            ["onlyCurrentWeek"] = "Только текущая неделя",
+            ["weekLabel"] = "Неделя:",
+            ["weekOdd"] = "Нечетная", ["weekEven"] = "Четная",
+            ["emptyWeek"] = "Нет занятий",
+            // Dialogs
+            ["renameTitle"] = "ПЕРЕИМЕНОВАНИЕ", ["original"] = "Оригинал: {0}", ["newName"] = "Новое название", ["footnote"] = "Примечание (сноска)", ["scope"] = "Область", ["global"] = "Глобально (все вхождения предмета)", ["weekdayOnly"] = "Только в этот день", ["preview"] = "Предпросмотр: {0}", ["reset"] = "Сбросить", ["cancel"] = "Отмена", ["save"] = "Сохранить",
+            ["hwTitle"] = "ДОМАШНЕЕ ЗАДАНИЕ", ["hwSubject"] = "Предмет: {0}", ["hwText"] = "Текст задания", ["hwN"] = "Через сколько занятий этого предмета сдать (1..10)", ["hwDue"] = "Срок: {0}", ["hwNoDate"] = "Срок: — (нет занятий)", ["hwStatusHint"] = "Статус: far (скрыт) → approaching (серый) → burning (яркий)",
+            // Notifications
+            ["notifNoLessons"] = "Сегодня пар нет",
+            ["notifBurning"] = "[ДЗ!]",
+            // Intersections tooltip
+            ["room"] = "ауд.",
+            // Parity note
+            ["semesterOddNote"] = "Обратите внимание! Семестр начинается с нечетной недели!",
+            ["stale"] = " · устаревшие данные",
+            ["ready"] = "Готово",
+            ["loading"] = "Загрузка...",
+            ["updatedOk"] = "Готово — расписание обновлено",
+            ["exportOk"] = "Экспорт сохранен {0} + QR {1}",
+            ["importOk"] = "Импорт: {0} переименований, {1} ДЗ, {2} друзей",
+            // Weekday names for API parity (already above)
+        },
+        ["en"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["appTitle"] = "VOG-ZAVTRA",
+            ["headerHint"] = "Group {0} · {1} week",
+            ["headerSub"] = "Voenmeh timetable · tomorrow by default",
+            ["odd"] = "odd",
+            ["even"] = "even",
+            ["oddShort"] = "odd",
+            ["evenShort"] = "even",
+            ["oddBadge"] = "ODD",
+            ["evenBadge"] = "EVEN",
+            ["mon"] = "Monday", ["tue"] = "Tuesday", ["wed"] = "Wednesday", ["thu"] = "Thursday", ["fri"] = "Friday", ["sat"] = "Saturday", ["sun"] = "Sunday",
+            ["monShort"] = "Mon", ["tueShort"] = "Tue", ["wedShort"] = "Wed", ["thuShort"] = "Thu", ["friShort"] = "Fri", ["satShort"] = "Sat", ["sunShort"] = "Sun",
+            ["today"] = "Today", ["tomorrow"] = "Tomorrow", ["week"] = "Week",
+            ["noLessons"] = "No lessons",
+            ["noLessonsShort"] = "No lessons",
+            ["colNo"] = "No.", ["colTime"] = "Time", ["colSubject"] = "Subject", ["colTeacher"] = "Teacher", ["colRoom"] = "Room/Building", ["colType"] = "Type",
+            ["settings"] = "SETTINGS",
+            ["myGroup"] = "My group",
+            ["invertParity"] = "Invert week parity",
+            ["invertHint"] = "If university shifted the week, enable inversion.",
+            ["friends"] = "FRIENDS (up to 5)",
+            ["friendsHint"] = "Color — one of 5, icon inside cell.",
+            ["strictness"] = "Intersection strictness",
+            ["strict0"] = "0 — any time", ["strict40"] = "40 — building", ["strict100"] = "100 — room",
+            ["notifications"] = "NOTIFICATIONS",
+            ["notifHint"] = "Text uses renamed titles and marks burning homework.",
+            ["time1"] = "Time 1", ["time2"] = "Time 2", ["saveTimes"] = "Save times",
+            ["sync"] = "SYNC", ["export"] = "Export", ["import"] = "Import", ["refresh"] = "Refresh schedule", ["updated"] = "Updated: {0}", ["lastAutoCheck"] = "Auto-check: {0}",
+            ["language"] = "Language", ["langRu"] = "Русский", ["langEn"] = "English",
+            ["auto"] = "auto", ["invert"] = "invert",
+            ["parity"] = "Parity",
+            ["group"] = "GROUP",
+            ["onlyCurrentWeek"] = "Current week only",
+            ["weekLabel"] = "Week:",
+            ["weekOdd"] = "Odd", ["weekEven"] = "Even",
+            ["emptyWeek"] = "No lessons",
+            ["renameTitle"] = "RENAME", ["original"] = "Original: {0}", ["newName"] = "New name", ["footnote"] = "Footnote", ["scope"] = "Scope", ["global"] = "Global (all occurrences)", ["weekdayOnly"] = "Only this weekday", ["preview"] = "Preview: {0}", ["reset"] = "Reset", ["cancel"] = "Cancel", ["save"] = "Save",
+            ["hwTitle"] = "HOMEWORK", ["hwSubject"] = "Subject: {0}", ["hwText"] = "Task text", ["hwN"] = "In how many occurrences (1..10)", ["hwDue"] = "Due: {0}", ["hwNoDate"] = "Due: — (no lessons)", ["hwStatusHint"] = "Status: far (hidden) → approaching (gray) → burning (bright)",
+            ["notifNoLessons"] = "No lessons today",
+            ["notifBurning"] = "[HW!]",
+            ["room"] = "room",
+            ["semesterOddNote"] = "Note: semester starts with odd week!",
+            ["stale"] = " · stale data",
+            ["ready"] = "Ready",
+            ["loading"] = "Loading...",
+            ["updatedOk"] = "Ready — schedule updated",
+            ["exportOk"] = "Export saved {0} + QR {1}",
+            ["importOk"] = "Import: {0} renames, {1} HW, {2} friends",
+        }
+    };
+
+    public I18nService(string lang = "ru") => SetLanguage(lang);
+
+    public void SetLanguage(string lang)
+    {
+        lang = (lang ?? "ru").ToLowerInvariant();
+        if (lang != "ru" && lang != "en") lang = "ru";
+        if (_lang == lang) return;
+        _lang = lang;
+        LanguageChanged?.Invoke();
+    }
+
+    public string T(string key, params object[] args)
+    {
+        if (!_dict.TryGetValue(_lang, out var d) || !d.TryGetValue(key, out var v))
+        {
+            // fallback to ru then key
+            if (_dict["ru"].TryGetValue(key, out var v2)) v = v2; else v = key;
+        }
+        if (args.Length > 0) try { return string.Format(v, args); } catch { return v; }
+        return v;
+    }
+
+    public string FormatDate(DateTime d) => _lang == "ru" ? d.ToString("dd.MM.yyyy") : d.ToString("yyyy-MM-dd");
+    public string FormatDay(DateTime d)
+    {
+        // returns localized weekday short
+        var dow = (int)d.DayOfWeek;
+        string key = dow switch { 0 => "sunShort", 1 => "monShort", 2 => "tueShort", 3 => "wedShort", 4 => "thuShort", 5 => "friShort", 6 => "satShort", _ => "monShort" };
+        return T(key);
+    }
+    public string FormatDayFull(DateTime d)
+    {
+        var dow = (int)d.DayOfWeek;
+        string key = dow switch { 0 => "sun", 1 => "mon", 2 => "tue", 3 => "wed", 4 => "thu", 5 => "fri", 6 => "sat", _ => "mon" };
+        return T(key);
+    }
+    public string FormatParity(bool isOdd) => isOdd ? T("odd") : T("even");
+    public string FormatParityBadge(bool isOdd) => isOdd ? T("oddBadge") : T("evenBadge");
+}
