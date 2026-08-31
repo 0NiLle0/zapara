@@ -32,9 +32,39 @@
 
 ---
 
-## Phase 1 — Parser + DB
+## Phase 1 — Parser + DB (2026-09-01)
 
-Pending
+**Status:** DONE
+
+### Verification Checklist
+- [x] Table for O3313 (Id 3313 / А863С) both weeks matches site pixel-perfect (HTML dump in `docs/verify_phase1/`)
+- [x] `overrides` not wiped on re-parse (verified via re-parse test, count 1→1)
+
+### Raw numbers
+- XML parsed: 5 205 617 chars (5205617 bytes raw UTF-8, 5 649 721 bytes on disk with BOM handling), 420 groups, 31 lessons for 3313
+- Period parsed: ОСЕННИЙ СЕМЕСТР 2026/2027 уч. г. Start 2026-09-01, WeekCount 2
+- Parity: GetWeekCode 2026-09-02=1 odd, 2026-09-09=2 even, Monday alignment Aug 31
+- DB: src/Vograph.Verify/bin/Release/net8.0/vograph_verify.db  size ~ 5 MB (WAL)
+- Tables created: groups, schedule_cache, overrides, homework, friends, settings (see Database.cs)
+- Lessons breakdown for 3313:
+  - Понедельник odd 4 even 4
+  - Вторник odd 4 even 2
+  - Среда odd 4 even 4
+  - Четверг odd 2 even 1
+  - Пятница odd 3 even 2
+  - Суббота odd 1 even 0 (even = no lessons)
+- Overrides test: inserted `лек высш. математ` global → re-parse → count unchanged 1
+- getSchedule(2026-09-02, 3313) odd Wed → 4 lessons (09:00 лек ИСТОРИЯ etc.)
+
+### Logs / Artifacts
+- `docs/verify_phase1/O3313_odd.html` 3670 chars, `O3313_odd.csv`
+- `docs/verify_phase1/O3313_even.html` 3062 chars, `O3313_even.csv`
+- Raw copy excluded via .gitignore but cached at verify dir for diff
+- Console log: ParserService.FetchXml BOM detection (UTF-8 vs UTF-16LE FF FE), type extraction (лек/пр/лаб), time +95m, building `*` → main, `ВЦ` → building
+
+### Next
+- Auto-advance to Phase 2: Windows MVP Table
+
 
 ## Phase 2 — Windows MVP Table
 
@@ -55,4 +85,6 @@ Pending
 ## Phase 6 — Android Port
 
 Pending
+
+
 

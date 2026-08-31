@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Vograph.Core/Vograph.Core.csproj" />
+    <Project Path="src/Vograph.Verify/Vograph.Verify.csproj" />
+    <Project Path="src/Vograph/Vograph.csproj" />
+  </Folder>
+</Solution>
