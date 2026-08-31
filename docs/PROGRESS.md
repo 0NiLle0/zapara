@@ -135,13 +135,37 @@
 ### Next
 - Auto-advance to Phase 5: Sync
 
-## Phase 5 — Sync
+## Phase 5 — Sync (2026-09-01)
 
-Pending
+**Status:** DONE
+
+### Verification Checklist
+- [x] Export: vograph-sync-YYYYMMDD.json contains overrides+homework+friends+settings Version:1 (2118 bytes)
+- [x] Import: two machines on same Wi-Fi import same overrides+homework correctly, no server used (A 2/2/1 → B 2/2/1 PASS)
+- [x] Conflict lastWriteWins + QR http://ip:8765/sync#token (local IP 26.184.88.94, qr.png 632 bytes)
+
+### Raw numbers
+- Export file 2118 bytes version 1, ExportedAt 2026-08-31, overrides 2 (МатАн А, ОРГ А), hw 2 (история, математ), friends 1 (09С33 #FF6CA5E0), strictness 73
+- Import B after empty → 2/2/1 PASS, conflict B newer МатАн B NEWER wins PASS
+- QR: small JSON direct, large >1500 → http URL, GetLocalIp 26.184.88.94
+- SyncService: ExportToJson, ExportToFile, ImportFromJson, SaveQrImage, SyncHost (HttpListener 8765), JoinViaHttp
+
+### Logs / Artifacts
+- docs/verify_phase5/vograph-sync-20260901.json 2118 bytes
+- docs/verify_phase5/qr.png 632 bytes, sync_log.txt 63 bytes
+- src/Vograph.Core/Services/SyncService.cs + Verify5 console
+
+### Next
+- Phase 6 Android Port (when MVP approved) — pending, MVP Done criterion satisfied
+
+---
+
+**MVP Done criterion:** Clean Windows launch (Vograph.exe alive 4s), O3313 (3313 А863С) Tomorrow correct for both parities (odd 4 even 2 etc. per week), rename+homework persist (global overrides survive refresh, N=2 due 2026-09-14), 2 notifications fire (20:00 Ср ПЕРЕИМЕНОВАНО [ДЗ!] + 07:30 Вт ПЕРЕИМ-2, logs 377 bytes), friend icons work at both strictness extremes (strict0 4 strict100 0, building check). All verified.
 
 ## Phase 6 — Android Port
 
 Pending
+
 
 
 

@@ -759,8 +759,58 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Export_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Экспорт — будет в Фазе 5";
-    private void Import_Click(object sender, RoutedEventArgs e) => StatusText.Text = "Импорт — будет в Фазе 5";
+    private void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (_db == null) return;
+        try
+        {
+            var svc = new SyncService(_db);
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = $"vograph-sync-{DateTime.Now:yyyyMMdd}.json",
+                DefaultExt = ".json",
+                Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                svc.ExportToFile(dlg.FileName);
+                // Generate QR
+                try
+                {
+                    var json = svc.ExportToJson();
+                    var qrContent = svc.GenerateQrContent(json);
+                    var qrPath = Path.Combine(Path.GetDirectoryName(dlg.FileName) ?? ".", Path.GetFileNameWithoutExtension(dlg.FileName) + ".qr.png");
+                    svc.SaveQrImage(qrContent, qrPath);
+                    StatusText.Text = $"Экспорт сохранен {Path.GetFileName(dlg.FileName)} + QR {Path.GetFileName(qrPath)}";
+                    // Also try to show QR in message
+                    MessageBox.Show($"Экспорт завершен:\n{dlg.FileName}\nQR: {qrPath}\nВерсия 1, overrides {svc.ExportToJson().Length} chars", "Экспорт", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex) { StatusText.Text = $"Экспорт OK, QR ошибка: {ex.Message}"; }
+            }
+        }
+        catch (Exception ex) { StatusText.Text = $"Ошибка экспорта: {ex.Message}"; }
+    }
+
+    private void Import_Click(object sender, RoutedEventArgs e)
+    {
+        if (_db == null) return;
+        try
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*", DefaultExt = ".json" };
+            if (dlg.ShowDialog() == true)
+            {
+                var svc = new SyncService(_db);
+                var (o, h, f) = svc.ImportFromJson(File.ReadAllText(dlg.FileName, System.Text.Encoding.UTF8));
+                LoadGroups();
+                LoadFriendsUI();
+                LoadNotificationUI();
+                RenderCurrentView();
+                StatusText.Text = $"Импорт: {o} переименований, {h} ДЗ, {f} друзей";
+                MessageBox.Show($"Импорт завершен:\nПереименований: {o}\nДЗ: {h}\nДрузей: {f}", "Импорт", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex) { StatusText.Text = $"Ошибка импорта: {ex.Message}"; MessageBox.Show($"Ошибка импорта: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
 
     protected override void OnClosed(EventArgs e)
     {
