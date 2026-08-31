@@ -66,9 +66,28 @@
 - Auto-advance to Phase 2: Windows MVP Table
 
 
-## Phase 2 — Windows MVP Table
+## Phase 2 — Windows MVP Table (2026-09-01)
 
-Pending
+**Status:** DONE
+
+### Verification Checklist
+- [x] Clean Windows launch -> pick O3313 (3313 А863С) -> Tomorrow table correct for odd+even weeks
+- [x] docs/ui_checklist.md with screenshots (dark theme, mono font, card look) 3 PNGs
+
+### Raw numbers
+- Window 1360x820 CenterScreen Obsidian #0E1013, Header Bronze #6CA5E0 1px, Card Panel #15181D BorderDim #262B33
+- Fonts Cascadia Mono 11, SectionLabel Bronze 10 SemiBold, GhostButton/FerryButton
+- Build: Vograph.exe Release net8.0-windows, process alive 4s, no crash
+- Screenshots: tomorrow_odd 19575 bytes, tomorrow_even 14374 bytes, week_odd 16800 bytes
+- Table O3313 odd vs even verified: Среда 02.09.2026 odd 4 rows (09:00 лек ИСТОРИЯ etc.) vs even 2026-09-09 4 rows (09:00 лек ИСТОРИЯ etc.) per verify_phase1
+
+### Logs
+- Themes/Vograph.xaml copied 1:1 from Charon.xaml:7-24 + MainWindow.xaml:8-10
+- MainWindow.xaml tabs Today/Tomorrow/Week, parity badge, week 3+3 grid, group picker saves to settings.myGroupId
+- DB reuse same ParserService, lastUpdated visible, stale badge
+
+### Next
+- Auto-advance to Phase 3: Personalization
 
 ## Phase 3 — Personalization
 
@@ -85,6 +104,7 @@ Pending
 ## Phase 6 — Android Port
 
 Pending
+
 
 
 

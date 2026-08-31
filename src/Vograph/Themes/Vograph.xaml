@@ -1,0 +1,358 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Palette 1:1 from Charon.xaml:7-24 -->
+    <Color x:Key="ObsidianColor">#FF0E1013</Color>
+    <Color x:Key="PanelColor">#FF15181D</Color>
+    <Color x:Key="PanelAltColor">#FF1B1F26</Color>
+    <Color x:Key="MarbleColor">#FFC5CAD3</Color>
+    <Color x:Key="PatinaColor">#FF98C379</Color>
+    <Color x:Key="BronzeColor">#FF6CA5E0</Color>
+    <Color x:Key="CinnabarColor">#FFE06C75</Color>
+
+    <SolidColorBrush x:Key="Obsidian" Color="{StaticResource ObsidianColor}" />
+    <SolidColorBrush x:Key="Panel" Color="{StaticResource PanelColor}" />
+    <SolidColorBrush x:Key="PanelAlt" Color="{StaticResource PanelAltColor}" />
+    <SolidColorBrush x:Key="Marble" Color="{StaticResource MarbleColor}" />
+    <SolidColorBrush x:Key="MarbleDim" Color="#FF6B7280" />
+    <SolidColorBrush x:Key="Patina" Color="{StaticResource PatinaColor}" />
+    <SolidColorBrush x:Key="Bronze" Color="{StaticResource BronzeColor}" />
+    <SolidColorBrush x:Key="Cinnabar" Color="{StaticResource CinnabarColor}" />
+    <SolidColorBrush x:Key="BorderDim" Color="#FF262B33" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FF2E343F" />
+
+    <FontFamily x:Key="BodyFont">Cascadia Code, Cascadia Mono, JetBrains Mono, Consolas</FontFamily>
+    <FontFamily x:Key="MonoFont">Cascadia Code, Cascadia Mono, JetBrains Mono, Consolas</FontFamily>
+
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+    <CubicEase x:Key="EaseOut" EasingMode="EaseOut" />
+    <QuadraticEase x:Key="QuadOut" EasingMode="EaseOut" />
+    <SineEase x:Key="SineOut" EasingMode="EaseOut" />
+    <SineEase x:Key="SineInOut" EasingMode="EaseInOut" />
+
+    <!-- Text -->
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+    </Style>
+    <Style x:Key="Title" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style x:Key="SectionLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Bronze}" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+    </Style>
+    <Style x:Key="Dim" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource MarbleDim}" />
+        <Setter Property="FontSize" Value="10" />
+    </Style>
+
+    <!-- Scrollbar thin 9px dark -->
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="t" CornerRadius="3" Margin="2" Background="{StaticResource ScrollThumbBrush}" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="t" Property="Background" Value="#FF3C4450" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Width" Value="9" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True">
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollThumb}" />
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" />
+                            </Track.DecreaseRepeatButton>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="9" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Card -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Panel}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDim}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Padding" Value="7" />
+    </Style>
+
+    <!-- GhostButton -->
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="b" CornerRadius="3" BorderThickness="1" RenderTransformOrigin="0.5,0.5">
+                        <Border.Background><SolidColorBrush Color="#FF1B1F26" /></Border.Background>
+                        <Border.BorderBrush><SolidColorBrush Color="#FF262B33" /></Border.BorderBrush>
+                        <Border.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Border.RenderTransform>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#FF222834" Duration="0:0:0.15" EasingFunction="{StaticResource SineOut}" />
+                                        <ColorAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
+                                                        To="#FF6CA5E0" Duration="0:0:0.15" EasingFunction="{StaticResource SineOut}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#FF1B1F26" Duration="0:0:0.2" />
+                                        <ColorAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
+                                                        To="#FF262B33" Duration="0:0:0.2" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="0.97" Duration="0:0:0.09" EasingFunction="{StaticResource QuadOut}" />
+                                        <DoubleAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="0.97" Duration="0:0:0.09" EasingFunction="{StaticResource QuadOut}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="b" Storyboard.TargetProperty="(Border.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="b" Property="Opacity" Value="0.4" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- FerryButton primary -->
+    <Style x:Key="FerryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource Bronze}" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="18,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid x:Name="fbRoot" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Grid.RenderTransform>
+                        <Border x:Name="fb" CornerRadius="3" BorderThickness="1">
+                            <Border.Background><SolidColorBrush Color="#FF15181D" /></Border.Background>
+                            <Border.BorderBrush><SolidColorBrush Color="#FF6CA5E0" /></Border.BorderBrush>
+                            <Border.Effect><DropShadowEffect x:Name="fbGlow" Color="#FF6CA5E0" BlurRadius="0" ShadowDepth="0" Opacity="0.7" /></Border.Effect>
+                        </Border>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Margin="{TemplateBinding Padding}"
+                                          TextOptions.TextFormattingMode="Display"
+                                          TextOptions.TextRenderingMode="ClearType" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1.03" Duration="0:0:0.14" EasingFunction="{StaticResource EaseOut}" />
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1.03" Duration="0:0:0.14" EasingFunction="{StaticResource EaseOut}" />
+                                        <ColorAnimation Storyboard.TargetName="fb" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#FF1B1F26" Duration="0:0:0.14" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1" Duration="0:0:0.16" />
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1" Duration="0:0:0.16" />
+                                        <ColorAnimation Storyboard.TargetName="fb" Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#FF15181D" Duration="0:0:0.16" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="0.97" Duration="0:0:0.09" EasingFunction="{StaticResource QuadOut}" />
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="0.97" Duration="0:0:0.09" EasingFunction="{StaticResource QuadOut}" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1.03" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="fbRoot" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1.03" Duration="0:0:0.12" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- GearButton (for header) -->
+    <Style x:Key="GearButton" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="b" CornerRadius="3" BorderThickness="1" Background="Transparent" BorderBrush="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="#FF1B1F26"/>
+                            <Setter TargetName="b" Property="BorderBrush" Value="#FF262B33"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="#FF222834"/>
+                            <Setter TargetName="b" Property="BorderBrush" Value="#FF6CA5E0"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ComboBox (simplified from Charon) -->
+    <Style TargetType="ComboBox">
+        <Setter Property="IsSynchronizedWithCurrentItem" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="Background" Value="{StaticResource PanelAlt}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BorderDim}" />
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton Style="{StaticResource GearButton}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
+                        <!-- custom arrow -->
+                        <Border BorderThickness="1" CornerRadius="3" BorderBrush="{StaticResource BorderDim}" Background="{StaticResource PanelAlt}" IsHitTestVisible="False">
+                            <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#FF6B7280"/>
+                        </Border>
+                        <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          Margin="8,0,22,0" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                          TextElement.Foreground="{StaticResource Marble}" />
+                        <Popup x:Name="Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
+                               AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}"
+                                    BorderThickness="1" CornerRadius="3" Margin="0,4,0,0"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    MaxHeight="250">
+                                <Border.Effect><DropShadowEffect Color="#FF000000" BlurRadius="16" ShadowDepth="0" Opacity="0.45" /></Border.Effect>
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource Marble}" />
+        <Setter Property="Padding" Value="7,3" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="bd" Padding="{TemplateBinding Padding}" CornerRadius="2" Margin="3,1">
+                        <Border.Background><SolidColorBrush Color="#00222834" /></Border.Background>
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="#FF222834"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="#FF222834"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

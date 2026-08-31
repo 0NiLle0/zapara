@@ -3,10 +3,141 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Vograph"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="VOG-ZAVTRA" Height="820" Width="1360" MinHeight="640" MinWidth="1180"
+        Background="{StaticResource Obsidian}"
+        FontFamily="{StaticResource BodyFont}"
+        WindowStartupLocation="CenterScreen">
+    <Grid x:Name="RootLayer" Focusable="True" Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
+        <!-- Header like Charon: thin Bronze bottom border -->
+        <Border Grid.Row="0" Background="{StaticResource Obsidian}" BorderBrush="{StaticResource Bronze}" BorderThickness="0,0,0,1" Padding="10,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: hamburger + title + hint -->
+                <StackPanel Grid.Column="0" Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="LeftPanelToggle" Content="≡" Style="{StaticResource GhostButton}" Padding="0" FontSize="19" Width="34" Height="34" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="Меню"/>
+                        <TextBlock Text="VOG-ZAVTRA" Style="{StaticResource Title}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="HeaderHint" Text="Группа — · —" Foreground="{StaticResource MarbleDim}" FontSize="10" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock x:Name="ElevationHint" Text="Расписание Военмеха · завтра по умолчанию" Style="{StaticResource Dim}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Right: gear -->
+                <ToggleButton x:Name="SettingsButton" Grid.Column="1" Content="⚙" Style="{StaticResource GearButton}" VerticalAlignment="Top" ToolTip="Настройки"/>
+
+                <Popup IsOpen="{Binding IsChecked, ElementName=SettingsButton, Mode=TwoWay}" PlacementTarget="{Binding ElementName=SettingsButton}" Placement="Bottom" HorizontalOffset="-298" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Focusable="False">
+                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}" BorderThickness="1" CornerRadius="3" Padding="12" Width="330">
+                        <StackPanel>
+                            <TextBlock Text="НАСТРОЙКИ" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock Text="Группа" Style="{StaticResource Dim}" Margin="0,6,0,0"/>
+                            <ComboBox x:Name="SettingsGroupPicker" Margin="0,4,0,0" Height="26"/>
+                            <CheckBox x:Name="ChkInvertParity" Content="Инвертировать четность недели" Foreground="{StaticResource Marble}" FontSize="11" Margin="0,10,0,0"/>
+                            <TextBlock Text="Если вуз сдвинул неделю, включите инверсию." Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <Border Height="1" Background="{StaticResource BorderDim}" Margin="0,12,0,0" Opacity="0.5"/>
+                            <TextBlock Text="СИНХРОНИЗАЦИЯ" Style="{StaticResource SectionLabel}" Margin="0,10,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="Экспорт" Style="{StaticResource GhostButton}" Click="Export_Click"/>
+                                <Button Content="Импорт" Style="{StaticResource GhostButton}" Margin="6,0,0,0" Click="Import_Click"/>
+                            </StackPanel>
+                            <TextBlock x:Name="LastUpdatedText" Text="Обновлено: —" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
+                            <Button Content="Обновить расписание" Style="{StaticResource FerryButton}" Margin="0,10,0,0" Click="Refresh_Click"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </Grid>
+        </Border>
+
+        <!-- Main area -->
+        <Grid Grid.Row="1" Margin="10,10,10,6">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top controls: group picker + refresh -->
+            <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="ГРУППА" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="GroupPicker" Grid.Column="1" MinWidth="180" MaxWidth="260" HorizontalAlignment="Left" SelectionChanged="GroupPicker_Changed"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Обновить" Style="{StaticResource GhostButton}" Click="Refresh_Click" Margin="0,0,6,0"/>
+                        <CheckBox x:Name="ChkOnlyCurrentWeek" Content="Только текущая неделя" Foreground="{StaticResource Marble}" FontSize="11" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Tabs: Today | Tomorrow | Week -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                <Button x:Name="BtnToday" Content="Сегодня" Style="{StaticResource GhostButton}" Width="110" Click="TabToday_Click"/>
+                <Button x:Name="BtnTomorrow" Content="Завтра" Style="{StaticResource FerryButton}" Width="110" Margin="8,0,0,0" Click="TabTomorrow_Click"/>
+                <Button x:Name="BtnWeek" Content="Неделя" Style="{StaticResource GhostButton}" Width="110" Margin="8,0,0,0" Click="TabWeek_Click"/>
+                <TextBlock x:Name="DateHeader" Text="—" Foreground="{StaticResource MarbleDim}" FontSize="11" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                <Border x:Name="ParityBadge" Background="{StaticResource PanelAlt}" BorderBrush="{StaticResource BorderDim}" BorderThickness="1" CornerRadius="3" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="ParityText" Text="—" Foreground="{StaticResource Bronze}" FontSize="10" FontWeight="SemiBold"/>
+                </Border>
+            </StackPanel>
+
+            <!-- Week parity selector for week view -->
+            <StackPanel x:Name="WeekParityPanel" Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8" Visibility="Collapsed">
+                <TextBlock Text="Неделя:" Foreground="{StaticResource MarbleDim}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Button x:Name="BtnWeekOdd" Content="Нечетная" Style="{StaticResource GhostButton}" Padding="10,4" Click="WeekOdd_Click"/>
+                <Button x:Name="BtnWeekEven" Content="Четная" Style="{StaticResource GhostButton}" Padding="10,4" Margin="6,0,0,0" Click="WeekEven_Click"/>
+            </StackPanel>
+
+            <!-- Schedule list -->
+            <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
+                <Grid>
+                    <ScrollViewer x:Name="ScheduleScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="7">
+                        <StackPanel x:Name="SchedulePanel">
+                            <!-- Lessons inserted here -->
+                            <TextBlock x:Name="EmptyText" Text="Нет занятий" Foreground="{StaticResource MarbleDim}" HorizontalAlignment="Center" Margin="0,30" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <!-- Week view 6 columns -->
+                    <ScrollViewer x:Name="WeekScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="7" Visibility="Collapsed">
+                        <Grid x:Name="WeekGrid">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <!-- 6 day columns will be stacked: 3+3 -->
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- Footer / status -->
+            <Border Grid.Row="4" Margin="0,6,0,0" Background="Transparent">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="StatusText" Text="Готово" Style="{StaticResource Dim}" />
+                    <TextBlock x:Name="StaleBadge" Text=" · устаревшие данные" Foreground="{StaticResource Cinnabar}" FontSize="10" FontWeight="SemiBold" Visibility="Collapsed" Margin="6,0,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
