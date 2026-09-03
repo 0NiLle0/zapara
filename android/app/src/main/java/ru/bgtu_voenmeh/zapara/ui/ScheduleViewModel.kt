@@ -11,18 +11,24 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
 import ru.bgtu_voenmeh.zapara.data.Friend
 import ru.bgtu_voenmeh.zapara.data.Homework
 import ru.bgtu_voenmeh.zapara.data.HomeworkService
 import ru.bgtu_voenmeh.zapara.data.IntersectionService
+import ru.bgtu_voenmeh.zapara.data.LecturerInfo
+import ru.bgtu_voenmeh.zapara.data.LecturerLesson
+import ru.bgtu_voenmeh.zapara.data.LecturerStore
 import ru.bgtu_voenmeh.zapara.data.Lesson
+import ru.bgtu_voenmeh.zapara.data.MapInfo
+import ru.bgtu_voenmeh.zapara.data.MapResolve
+import ru.bgtu_voenmeh.zapara.data.MapStore
 import ru.bgtu_voenmeh.zapara.data.OverrideService
 import ru.bgtu_voenmeh.zapara.data.Parity
 import ru.bgtu_voenmeh.zapara.data.SchedCtx
 import ru.bgtu_voenmeh.zapara.data.Schedule
 import ru.bgtu_voenmeh.zapara.data.ScheduleRepository
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -64,6 +70,20 @@ data class ScheduleUiState(
     val alwaysShow: Boolean = false,
     val invert: Boolean = false,
     val dialog: UiDialog = UiDialog.None,
+    // Maps (A4)
+    val mapVisible: Boolean = false,
+    val mapList: List<MapInfo> = emptyList(),
+    val currentMap: MapInfo? = null,
+    val mapPath: String? = null,
+    val fullscreenMap: Boolean = false,
+    // Teachers (A4)
+    val teachersReady: Boolean = false,
+    val teacherQuery: String = "",
+    val teacherOnlyMy: Boolean = true,
+    val teacherList: List<LecturerInfo> = emptyList(),
+    val teacherSelected: LecturerInfo? = null,
+    val teacherDetails: List<LecturerLesson> = emptyList(),
+    val teacherMyIds: Set<String> = emptySet(),
     val summary: List<SummarySection> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null
@@ -73,6 +93,8 @@ private val RU = Locale("ru")
 
 class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ScheduleRepository.get(app)
+    private val mapStore = MapStore(app)
+    private val lecturerStore = LecturerStore(app)
     private val overrides = OverrideService(repo.db.overrideDao())
     private val homework = HomeworkService(
         repo.db.homeworkDao(),
@@ -90,8 +112,10 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             try {
+                android.util.Log.d("ZaparaApp", "init start")
                 withContext(Dispatchers.IO) { repo.ensureData() }
                 val groups = withContext(Dispatchers.IO) { repo.groups() }
+                android.util.Log.d("ZaparaApp", "init groups=${groups.size}")
                 val s = withContext(Dispatchers.IO) { repo.settings() }
                 val gid = s.myGroupId?.takeIf { id -> groups.any { it.id == id } }
                     ?: groups.firstOrNull { it.id == "3313" }?.id // test group default
@@ -99,8 +123,18 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 // Smart start: today if lessons remain, else tomorrow.
                 val startTab = withContext(Dispatchers.IO) { smartStartTab(gid) }
                 render(startTab, gid, 1, groups, gid)
+                android.util.Log.d("ZaparaApp", "init done tab=$startTab gid=$gid")
             } catch (e: Exception) {
+                android.util.Log.d("ZaparaApp", "init error: $e")
                 state = state.copy(loading = false, error = e.message ?: "load error")
+            }
+        }
+        // Lecturer schedule loads in background (bundled asset, offline-first).
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { lecturerStore.load() }
+                refreshTeacherList()
+            } catch (_: Exception) {
             }
         }
     }
@@ -134,9 +168,10 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
     /** Re-render from current DB without network (used by tests). */
-    fun reload() {        viewModelScope.launch {
+    fun reload() {
+        android.util.Log.d("ZaparaApp", "reload() called")
+        viewModelScope.launch {
             try {
                 val groups = withContext(Dispatchers.IO) { repo.groups() }
                 val s = withContext(Dispatchers.IO) { repo.settings() }
@@ -167,6 +202,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun render(tab: Tab, groupId: String, weekParity: Int, groups: List<GroupInfo>, gid: String) {
+        android.util.Log.d("ZaparaApp", "render start tab=$tab gid=$gid groups=${groups.size}")
         val s = withContext(Dispatchers.IO) { repo.settings() }
         val id = gid.ifEmpty { groups.firstOrNull()?.id.orEmpty() }
         val name = groups.firstOrNull { it.id == id }?.name ?: "—"
@@ -239,6 +275,10 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             invert = s.parityInvert,
             dialog = state.dialog,
             summary = summary, loading = false, error = null
+        )
+        android.util.Log.d(
+            "ZaparaApp",
+            "render done tab=$tab lessons=${dayLessons.size} groups=${groups.size}"
         )
     }
 
@@ -437,6 +477,153 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 repo.saveSettings(st.copy(parityInvert = value))
             }
             render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    // ---- Maps (A4) ----
+
+    private fun allMaps(): List<MapInfo> =
+        MapResolve.MAP_FILES.entries
+            .sortedWith(compareBy({ it.key.first }, { it.key.second }))
+            .map { (k, f) ->
+                MapInfo(
+                    building = k.first, floor = k.second,
+                    title = "${k.first} ${k.second} этаж", fileName = f,
+                    roomRaw = "", classroomRaw = "",
+                    isRemote = false, hasMap = true
+                )
+            }
+
+    fun toggleMap() {
+        val show = !state.mapVisible
+        if (show && state.mapList.isEmpty()) {
+            viewModelScope.launch {
+                val list = withContext(Dispatchers.IO) { allMaps() }
+                state = state.copy(mapVisible = true, mapList = list)
+                if (state.currentMap == null) updateMapForNextLesson()
+            }
+        } else {
+            state = state.copy(mapVisible = show)
+        }
+    }
+
+    fun pickMap(m: MapInfo) {
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) { mapStore.mapFile(m.fileName)?.absolutePath }
+            state = state.copy(currentMap = m, mapPath = path)
+        }
+    }
+
+    fun showMapFor(lesson: Lesson) {
+        val mi = MapResolve.resolve(lesson.classroomRaw) ?: return
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                if (mi.hasMap) mapStore.mapFile(mi.fileName)?.absolutePath else null
+            }
+            val list = if (state.mapList.isEmpty()) withContext(Dispatchers.IO) { allMaps() } else state.mapList
+            state = state.copy(mapVisible = true, mapList = list, currentMap = mi, mapPath = path)
+        }
+    }
+
+    fun setFullscreen(value: Boolean) {
+        state = state.copy(fullscreenMap = value)
+    }
+
+    private fun updateMapForNextLesson() {
+        viewModelScope.launch {
+            try {
+                val gid = state.groupId.ifEmpty { return@launch }
+                val (lesson, _) = withContext(Dispatchers.IO) {
+                    val s = repo.settings()
+                    val all = repo.allForGroup(gid)
+                    // Next lesson from now (today remaining, then following days).
+                    val now = java.time.LocalTime.now()
+                    val today = LocalDate.now()
+                    for (offset in 0..6) {
+                        val date = today.plusDays(offset.toLong())
+                        if (date.dayOfWeek == DayOfWeek.SUNDAY) continue
+                        var code = Parity.weekCode(date, s.periodStart, s.weekCount)
+                        if (s.parityInvert) code = if (code == 1) 2 else 1
+                        val dow = date.dayOfWeek.value
+                        val dayLessons = all.filter {
+                            it.groupId == gid && it.dayOfWeek == dow && (it.parity == code || it.parity == 0)
+                        }.sortedBy { it.timeStart }
+                        for (l in dayLessons) {
+                            if (offset == 0) {
+                                val ts = runCatching { java.time.LocalTime.parse(l.timeStart) }.getOrNull()
+                                    ?: continue
+                                val te = runCatching { java.time.LocalTime.parse(l.timeEnd) }.getOrNull()
+                                if (ts.isAfter(now) || (te != null && te.isAfter(now))) return@withContext l to date
+                            } else {
+                                return@withContext l to date
+                            }
+                        }
+                    }
+                    null to today
+                }
+                if (lesson != null) showMapFor(lesson)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    // ---- Teachers (A4) ----
+
+    fun openTeachers() {
+        state = state.copy(dialog = UiDialog.Teachers)
+        refreshTeacherList()
+    }
+
+    fun teacherQuery(q: String) {
+        state = state.copy(teacherQuery = q)
+        refreshTeacherList()
+    }
+
+    fun teacherOnlyMy(value: Boolean) {
+        state = state.copy(teacherOnlyMy = value)
+        refreshTeacherList()
+    }
+
+    fun selectTeacher(t: LecturerInfo) {
+        viewModelScope.launch {
+            val details = withContext(Dispatchers.IO) { lecturerStore.lessonsFor(t.id) }
+            state = state.copy(teacherSelected = t, teacherDetails = details)
+        }
+    }
+
+    fun isMyTeacher(t: LecturerInfo): Boolean {
+        val ids = state.teacherMyIds
+        return t.id in ids || t.name in ids
+    }
+
+    private fun myTeacherIds(): Set<String> {
+        return try {
+            lecturerStore.myTeacherIds(repo.allForGroup(state.groupId))
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun refreshTeacherList() {
+        viewModelScope.launch {
+            val ready = withContext(Dispatchers.IO) { lecturerStore.isLoaded() }
+            if (!ready) {
+                state = state.copy(teachersReady = false)
+                return@launch
+            }
+            val q = state.teacherQuery
+            val onlyMy = state.teacherOnlyMy
+            val (list, sel, ids) = withContext(Dispatchers.IO) {
+                val ids = myTeacherIds()
+                val found = lecturerStore.search(q, onlyMy, ids)
+                val kept = state.teacherSelected?.takeIf { s -> found.any { it.id == s.id } }
+                Triple(found, kept, ids)
+            }
+            val details = if (sel != null) withContext(Dispatchers.IO) { lecturerStore.lessonsFor(sel.id) } else emptyList()
+            state = state.copy(
+                teachersReady = true, teacherList = list,
+                teacherSelected = sel, teacherDetails = details, teacherMyIds = ids
+            )
         }
     }
 

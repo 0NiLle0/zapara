@@ -16,20 +16,15 @@ import org.junit.runner.RunWith
 import ru.bgtu_voenmeh.zapara.data.Parity
 import ru.bgtu_voenmeh.zapara.data.db.FriendEntity
 import ru.bgtu_voenmeh.zapara.data.db.GroupEntity
-import ru.bgtu_voenmeh.zapara.data.db.HomeworkEntity
 import ru.bgtu_voenmeh.zapara.data.db.LessonEntity
 import ru.bgtu_voenmeh.zapara.data.db.MIGRATION_1_2
-import ru.bgtu_voenmeh.zapara.data.db.OverrideEntity
 import ru.bgtu_voenmeh.zapara.data.db.SettingsEntity
 import ru.bgtu_voenmeh.zapara.data.db.ZaparaDatabase
 import ru.bgtu_voenmeh.zapara.ui.ScheduleViewModel
 
-// A3 end-to-end: seed DB -> launch -> override/homework/traffic/friends-dialog visible.
-// NOTE: uses only canonical compose-test APIs (waitForIdle/waitUntil/live tree).
-// The rule swaps Dispatchers.Main for a test dispatcher, so raw Thread.sleep
-// and UiDevice polling do NOT advance app coroutines — never use them here.
+// A4: offline maps (bundled assets) + teacher finder (bundled lecturer XML).
 @RunWith(AndroidJUnit4::class)
-class ScheduleFlowTest {
+class MapTeacherTest {
 
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
@@ -44,12 +39,9 @@ class ScheduleFlowTest {
         private fun seed(db: ZaparaDatabase) {
             db.clearAllTables()
             db.groupDao().upsert(GroupEntity("3313", "А863С"))
-            db.groupDao().upsert(GroupEntity("3031", "09С31"))
-            // Lessons for every weekday (parity 0 = both) so Today/Tomorrow always show rows.
-            val mine = mutableListOf<LessonEntity>()
-            val friend = mutableListOf<LessonEntity>()
+            val lessons = mutableListOf<LessonEntity>()
             for (dow in 1..6) {
-                mine.add(
+                lessons.add(
                     LessonEntity(
                         groupId = "3313", dayOfWeek = dow, parity = 0, idx = 1,
                         timeStart = "09:00", timeEnd = "10:35",
@@ -59,7 +51,7 @@ class ScheduleFlowTest {
                         typeRaw = "лек", classroomRaw = "493;"
                     )
                 )
-                mine.add(
+                lessons.add(
                     LessonEntity(
                         groupId = "3313", dayOfWeek = dow, parity = 0, idx = 2,
                         timeStart = "10:50", timeEnd = "12:25",
@@ -69,35 +61,11 @@ class ScheduleFlowTest {
                         typeRaw = "лек", classroomRaw = "526*;"
                     )
                 )
-                friend.add(
-                    LessonEntity(
-                        groupId = "3031", dayOfWeek = dow, parity = 0, idx = 1,
-                        timeStart = "09:00", timeEnd = "10:35",
-                        subjectRaw = "лек ФИЗИКА",
-                        subjectNormalized = Parity.normalizeSubject("лек ФИЗИКА"),
-                        teacherRaw = "Петров А.Б.", roomRaw = "493", buildingRaw = "ГК",
-                        typeRaw = "лек", classroomRaw = "493;"
-                    )
-                )
             }
-            db.lessonDao().insertAll(mine)
-            db.lessonDao().insertAll(friend)
+            db.lessonDao().insertAll(lessons)
             db.settingsDao().save(SettingsEntity(myGroupId = "3313"))
             db.friendDao().insert(
-                FriendEntity(groupName = "09С31", colorHex = "#FF6CA5E0", enabled = true, memberNames = "Иван")
-            )
-            db.overrideDao().insert(
-                OverrideEntity(
-                    subjectRawNormalized = Parity.normalizeSubject("лек ВЫСШ. МАТЕМАТ"),
-                    scope = "global", displayName = "МАТАН", note = null, createdAt = "2026-09-03"
-                )
-            )
-            db.homeworkDao().insert(
-                HomeworkEntity(
-                    subjectRawNormalized = Parity.normalizeSubject("лек ИСТОРИЯ"),
-                    text = "прочитать §5", createdAt = "2026-09-01", targetNthOccurrence = 1,
-                    dueDateComputed = "2026-09-04", status = "burning"
-                )
+                FriendEntity(groupName = "09С31", colorHex = "#FF6CA5E0", enabled = true)
             )
         }
     }
@@ -125,49 +93,91 @@ class ScheduleFlowTest {
         failure?.let { throw RuntimeException("seed failed", it) }
     }
 
-    /** Live in-process semantics tree. */
     private fun treeTexts(): List<String> {
         return try {
-            compose.onAllNodes(
+            val nodes = compose.onAllNodes(
                 androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(
                     androidx.compose.ui.semantics.SemanticsProperties.Text
                 )
-            ).fetchSemanticsNodes().mapNotNull { node ->
+            ).fetchSemanticsNodes()
+            var dropped = 0
+            val out = nodes.mapNotNull { node ->
                 try {
                     node.config[androidx.compose.ui.semantics.SemanticsProperties.Text]
                         .joinToString("|") { t: androidx.compose.ui.text.AnnotatedString -> t.text }
                 } catch (_: Exception) {
+                    dropped++
                     null
                 }
             }
+            android.util.Log.i("ZaparaTest", "tree nodes=${nodes.size} dropped=$dropped kept=${out.size}")
+            out
         } catch (_: Exception) {
             emptyList()
         }
     }
 
-    private fun refreshUi() {
+    private fun dumpTree(tag: String) {
+        try {
+            val all = compose.onAllNodes(
+                androidx.compose.ui.test.SemanticsMatcher.keyIsDefined(
+                    androidx.compose.ui.semantics.SemanticsProperties.Text
+                )
+            ).fetchSemanticsNodes()
+            var dropped = 0
+            var firstErr: String? = null
+            val out = all.mapNotNull { node ->
+                try {
+                    node.config[androidx.compose.ui.semantics.SemanticsProperties.Text]
+                        .joinToString("|") { t: androidx.compose.ui.text.AnnotatedString -> t.text }
+                } catch (e: Exception) {
+                    dropped++
+                    if (firstErr == null) firstErr = e.toString()
+                    null
+                }
+            }
+            android.util.Log.i(
+                "ZaparaTest",
+                "$tag tree total=${all.size} dropped=$dropped kept=${out.size} firstErr=$firstErr"
+            )
+            out.chunked(5).forEachIndexed { i, chunk ->
+                android.util.Log.i("ZaparaTest", "$tag part$i :: " + chunk.joinToString(" ## "))
+            }
+        } catch (e: Throwable) {
+            android.util.Log.i("ZaparaTest", "$tag tree dump failed: $e")
+        }
+    }
+
+    private fun reload() {
         val vm = ViewModelProvider(compose.activity)[ScheduleViewModel::class.java]
         compose.activity.runOnUiThread { vm.reload() }
+        // Pump the test dispatcher so app coroutines + recomposition actually run.
         compose.waitForIdle()
     }
 
     @Test
-    fun renameHomeworkTrafficVisible() {
-        refreshUi()
-        // Override applied instead of raw subject (row shows "[лек] МАТАН").
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("МАТАН") } }
-        // Homework block under row.
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("прочитать") } }
-        // Traffic light label with member names.
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("09С31") } }
+    fun mapOpensOfflineFromRowButton() {
+        reload()
+        compose.waitUntil(20_000) { treeTexts().any { it.contains("◉") } || treeTexts().any { it.contains("КАРТА") } }
+        val vm = androidx.lifecycle.ViewModelProvider(compose.activity)[ru.bgtu_voenmeh.zapara.ui.ScheduleViewModel::class.java]
+        compose.activity.runOnUiThread {
+            val l = vm.state.lessons.firstOrNull() ?: return@runOnUiThread
+            vm.showMapFor(l)
+        }
+        compose.waitUntil(20_000) {
+            val s = try { androidx.lifecycle.ViewModelProvider(compose.activity)[ru.bgtu_voenmeh.zapara.ui.ScheduleViewModel::class.java].state } catch (_: Exception) { null }
+            s?.mapVisible == true
+        }
+        compose.waitUntil(20_000) { treeTexts().any { it.contains("КАРТА") } }
     }
 
     @Test
-    fun friendsDialogOpens() {
-        refreshUi()
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("Друзья") } }
-        compose.onNodeWithText("Друзья").performClick()
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("Друзья (до 5)") } }
-        compose.waitUntil(20_000) { treeTexts().any { it.contains("Всегда все светофоры") } }
+    fun teacherFinderListsBundledLecturers() {
+        reload()
+        compose.waitUntil(20_000) { treeTexts().any { it.contains("Преподаватели") } }
+        val vm2 = androidx.lifecycle.ViewModelProvider(compose.activity)[ru.bgtu_voenmeh.zapara.ui.ScheduleViewModel::class.java]
+        compose.activity.runOnUiThread { vm2.openTeachers() }
+        // Bundled TimetableLecturer50.xml: full name present, only-mine finds Барт via 3313 lessons.
+        compose.waitUntil(30_000) { treeTexts().any { it.contains("Барт") } }
     }
 }

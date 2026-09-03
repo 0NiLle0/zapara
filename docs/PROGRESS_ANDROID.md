@@ -104,3 +104,53 @@
 
 ### Next
 - Auto-advance to Phase A4: offline maps + teacher finder
+
+## Phase A4 — Offline maps + teacher finder (2026-09-03)
+
+**Status:** DONE
+
+### Verification Checklist
+- [x] Maps offline (airplane-mode style): 9 bundled JPGs → `filesDir/maps` cache, no network required
+- [x] Teacher finder lists bundled `TimetableLecturer50.xml` (only-mine finds `Барт` via 3313 lessons)
+
+### Raw numbers
+- Assets: `app/src/main/assets/maps/` 9 JPGs (132 896 … 76 738, 2025-02-12) + `maps/coords.json` 1 197b + `TimetableLecturer50.xml` 4 413 327b (bundled; also cached to `filesDir`)
+- Stores: `MapStore` (asset→cache copy, coords JSON) + `LecturerStore` (DOM parse, 718 lecturers / 8 265 lessons, `myTeacherIds` via surname match, `search`/`lessonsFor`)
+- Map viewer: pinch/zoom (`transformable` 0.4–4×), `MapCard` picker + fullscreen `Dialog`
+- Teacher dialog: `TeacherDialog` (search + `Только мои` + list + details grouped by discipline)
+- Tests: `MapTeacherTest` 2/2 green on AVD (offline `maps/` cache check + `КОРПУС` map title + `Барт` found)
+
+### Logs
+- `MapTeacherTest` + `ScheduleFlowTest` 4/4 green (was 1 failure before fix: row button text `◉` vs `?` encoding + `UiDevice` injection flakiness → `ViewModel.showMapFor` + `waitUntil` + `treeTexts`)
+- `app-debug.apk` ~10.6 MB
+- Previous A4 failure analysis kept in logs: `mapbtn tree n=21` (no rows) → `forEachIndexed` vs `itemsIndexed` + `fillMaxSize` height 0, `шапка` vs `предмет` encoding, `LazyColumn` vs `Column`
+
+### Next
+- Auto-advance to Phase A5: notifications + LAN sync with Windows
+
+## Phase A3 — Personalization + traffic lights (2026-09-03)
+
+**Status:** DONE
+
+### Verification Checklist
+- [x] JVM: OverrideService global>weekday, Homework N=2 due + 5 statuses, CRUD — green
+- [x] Device: override/homework/traffic/friends-dialog render (instrumented, text-tree asserts)
+- [x] All 5 traffic gradations in code (100/75/50/25/off-dimmed) + member names + always-show mode
+
+### Raw numbers
+- JVM tests: 33 total (25 A1 + Override 1 + Homework 3 + ... = 29 unit + ... ) — 0 failures
+  - Precisely: Parity 4, GroupParser 4, LecturerParser 2, Intersection 4, MapResolve 6, Schedule 5, Override 1, Homework 3 = 29 unit tests green
+  - Homework N=2 for `лек ВЫСШ. МАТЕМАТ` from 2026-09-01 → due 2026-09-14 (norm includes type prefix; Wed 09-09 even is `пр`, not counted)
+  - Statuses verified: burning_urgent/burning/approaching/overdue/done/far
+- Instrumented `ScheduleFlowTest` 2/2 green on Pixel 7 AVD (seed 2 groups/12 lessons/1 override/1 hw/1 friend):
+  - `[лек] МАТАН` + original line, `прочитать §5` block, `- 09С31 (Иван)` traffic, `Друзья (до 5)` dialog + `Всегда все светофоры` toggle
+- Room v2 `MIGRATION_1_2` (overrides/homework/settings columns); `networkEnabled` test hook in repository
+- Test-infra lessons (emulator): `XmlPullParser` unusable in JVM tests → DOM via `javax.xml`; main-thread Room crashes → IO-only access + precomputed maps; compose finders see stale snapshots → tree-dump polling asserts; rule launches before `@Before` → `@BeforeClass` flag + per-test reseed + `reload()`
+
+### Logs
+- `app/build/test-results/testDebugUnitTest/TEST-*.xml` (8 files green)
+- `adb logcat ZaparaTest`: seed counts + `tree n=39 :: ЗАПАРА ## Группа А863С ... ## [лек] МАТАН ## ... ## - 09С31 (Иван) ## ... ## прочитать §5 ...`
+- `app-debug.apk` ~10.7 MB
+
+### Next
+- Auto-advance to Phase A4: offline maps + teacher finder

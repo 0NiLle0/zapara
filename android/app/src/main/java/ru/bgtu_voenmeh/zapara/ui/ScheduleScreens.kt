@@ -3,6 +3,7 @@
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +72,12 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             TextButton(onClick = { vm.openDialog(UiDialog.Friends) }) {
                 Text("Друзья", color = Bronze, fontSize = 11.sp)
             }
+            TextButton(onClick = { vm.openTeachers() }) {
+                Text("Преподаватели", color = Bronze, fontSize = 11.sp)
+            }
+            TextButton(onClick = { vm.toggleMap() }) {
+                Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp)
+            }
         }
         Spacer(Modifier.height(8.dp))
         // Group picker
@@ -112,6 +119,17 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             }
         }
         Spacer(Modifier.height(8.dp))
+        if (s.mapVisible) {
+            MapCard(
+                maps = s.mapList,
+                current = s.currentMap,
+                file = s.mapPath?.let { java.io.File(it) }?.takeIf { it.exists() },
+                onPick = { vm.pickMap(it) },
+                onFullscreen = { vm.setFullscreen(true) },
+                onClose = { vm.toggleMap() }
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         when {
             s.loading -> Text("Загрузка...", color = MarbleDim, fontSize = 11.sp)
             s.error != null -> Text("Ошибка: ${s.error}", color = Marble, fontSize = 11.sp)
@@ -119,6 +137,13 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             s.tab == Tab.Summary -> SummaryView(s.summary)
             else -> DayView(vm)
         }
+    }
+    if (s.fullscreenMap) {
+        FullscreenMap(
+            current = s.currentMap,
+            file = s.mapPath?.let { java.io.File(it) }?.takeIf { it.exists() },
+            onClose = { vm.setFullscreen(false) }
+        )
     }
 }
 
@@ -170,30 +195,34 @@ private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String
 @Composable
 private fun DayView(vm: ScheduleViewModel) {
     val s = vm.state
+    android.util.Log.d("ZaparaApp", "DayView compose tab=${s.tab} lessons=${s.lessons.size}")
     val lessons = s.lessons
     if (lessons.isEmpty()) {
         Text("Нет занятий", color = MarbleDim, fontSize = 11.sp)
         return
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         // Header row
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = PanelAlt),
-                border = BorderStroke(1.dp, BorderDim)
-            ) {
-                Row(Modifier.padding(7.dp, 4.dp)) {
-                    Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp))
-                    Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
-                    Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
-                    Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
-                    Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(96.dp))
-                    Spacer(Modifier.width(56.dp))
-                }
+        Card(
+            colors = CardDefaults.cardColors(containerColor = PanelAlt),
+            border = BorderStroke(1.dp, BorderDim)
+        ) {
+            Row(Modifier.padding(7.dp, 4.dp)) {
+                Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp))
+                Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
+                Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
+                Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
+                Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(96.dp))
+                Spacer(Modifier.width(56.dp))
             }
         }
-        itemsIndexed(lessons) { order, l ->
+        lessons.forEachIndexed { order, l ->
             LessonCard(
                 number = order + 1,
                 lesson = l,
@@ -204,6 +233,7 @@ private fun DayView(vm: ScheduleViewModel) {
                 homeworks = s.hwMap[l.subjectNormalized].orEmpty(),
                 onRename = { vm.openRename(l) },
                 onHomework = { vm.openDialog(UiDialog.Homework(order)) },
+                onMap = { vm.showMapFor(l) },
                 onHwToggle = { hw -> vm.toggleHomework(hw.id, hw.status != "done") },
                 onHwDelete = { hw -> vm.deleteHomework(hw.id) }
             )
@@ -243,6 +273,21 @@ private fun DayView(vm: ScheduleViewModel) {
                 onAdd = { vm.addFriend(it) },
                 onRemove = { vm.removeFriend(it) },
                 onSaveNames = { f, names -> vm.saveMemberNames(f, names) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.Teachers -> {
+            TeacherDialog(
+                groupName = s.groupName,
+                query = s.teacherQuery,
+                onQuery = { vm.teacherQuery(it) },
+                onlyMy = s.teacherOnlyMy,
+                onOnlyMy = { vm.teacherOnlyMy(it) },
+                teachers = s.teacherList,
+                selected = s.teacherSelected,
+                onSelect = { vm.selectTeacher(it) },
+                details = s.teacherDetails,
+                isMy = { vm.isMyTeacher(it) },
                 onDismiss = { vm.closeDialog() }
             )
         }
@@ -312,6 +357,7 @@ private fun LessonCard(
     homeworks: List<Homework>,
     onRename: () -> Unit,
     onHomework: () -> Unit,
+    onMap: () -> Unit,
     onHwToggle: (Homework) -> Unit,
     onHwDelete: (Homework) -> Unit
 ) {
@@ -355,6 +401,7 @@ private fun LessonCard(
                 Column {
                     TextButton(onClick = onRename) { Text("✎", color = Marble, fontSize = 10.sp) }
                     TextButton(onClick = onHomework) { Text("+", color = Marble, fontSize = 10.sp) }
+                    TextButton(onClick = onMap) { Text(String(Character.toChars(0x25C9)), color = Marble, fontSize = 10.sp) }
                 }
             }
             homeworks.forEach { hw ->
