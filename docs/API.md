@@ -253,3 +253,36 @@ Full dump in `docs/raw/`.
 
 Next: Phase 1 Parser + DB must read these XML files, cache raw, split `Discipline`/`Classroom`, handle encoding BOM, and expose `getSchedule(date)` filtering by `WeekCode` and weekday.
 
+---
+
+## 11. OpenMap — Building Maps (2026-09-01)
+
+**Source:** `https://voenmeh.ru/openmap/` — static page with 9 JPGs (no API, direct HTML `<img>` + “Скачать изображение”).
+
+| Building | Floor | URL | Size |
+|----------|-------|-----|------|
+| Главный корпус (ГК) | 1 | `https://voenmeh.ru/wp-content/uploads/2024/09/karta-glavnyj-korpus-1-etazh-2022.jpg` | 132896 |
+| ГК | 2 | `karta-glavnyj-korpus-2-etazh-2022.jpg` | 121886 |
+| ГК | 3 | `karta-glavnyj-korpus-3-etazh-2022.jpg` | 131217 |
+| ГК | 4 | `karta-glavnyj-korpus-4-etazh-2022.jpg` | 116501 |
+| УЛК | 1 | `karta-ulk.-1-etazh-2022.jpg` | 70269 |
+| УЛК | 2 | `karta-ulk.-2-etazh-2022.jpg` | 80570 |
+| УЛК | 3 | `karta-ulk.-3-etazh-2022.jpg` | 78130 |
+| УЛК | 4 | `karta-ulk.-4-etazh-2022.jpg` | 80726 |
+| УЛК | 5 | `karta-ulk.-5-etazh-2022.jpg` | 76738 |
+
+No JSON, no SVG overlay, no room coordinates — floor plans are raster JPGs. Mapping must be by **Classroom → building/floor heuristic** (see §3 `Classroom` parsing, corrected 2026-09-01 per user: “кабинеты со звездочкой — УЛК”):
+
+- `*` → УЛК (e.g. `331*;` `526*;` `507*а;` `270*(фест);`)
+- `ВЦ 372*;` → ВЦ (computing center) → show ГК plan with note “ВЦ — показать план ГК” (ВЦ priority before `*` check)
+- no `*` and not `ВЦ` → ГК (e.g. `324;` `450;` `313а;` `101;`)
+- `дистанционно` → remote, no map
+- floor = first digit of room number (e.g. `493` → 4, `270` → 2, `101` → 1), clamp ГК 4 / УЛК 5 (УЛК 5 retains 5th floor, e.g. `526*` → УЛК 5)
+- building raw codes like `СК`, etc. fallback to ГК if numeric
+
+Cache: `%LocalAppData%\Vograph\maps\karta-*.jpg` + bundled `publish/maps/` + `src/Vograph/maps/` (`CopyToOutputDirectory`) for offline first launch. `MapService.EnsureCachedAsync` prefers local → bundled → download via `HttpClient` (User-Agent Vograph/1.0).
+
+Next lesson resolution: `GetNextLesson(groupId, now)` scans today remaining (timeStart/timeEnd > now) → tomorrow → next 7 days, respects `ParityService` + `settings.parityInvert`, used for “Куда идти — следующая пара” panel (`MapWhereText`, `MapWhenText`, `MapImage`). Per-lesson `◉` button and context menu “Показать на карте” also calls `MapService.Resolve(classroomRaw)`.
+
+Verified via `src/Vograph.VerifyMap` (2026-09-01, corrected star=УЛК): 14 classroom cases PASS (`331*;`→УЛК3, `324;`→ГК3, `ВЦ 372*;`→ВЦ, `507*а;`→УЛК5, `526*;`→УЛК5), next lesson 3313 `526*;` → УЛК 5 PASS, `EnsureAllMapsCachedAsync` 9/9 cached PASS.
+

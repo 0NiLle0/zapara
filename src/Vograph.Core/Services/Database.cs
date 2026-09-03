@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS friends (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     groupName TEXT NOT NULL,
     colorHex TEXT NOT NULL,
-    enabled INTEGER NOT NULL
+    enabled INTEGER NOT NULL,
+    memberNames TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -86,16 +87,18 @@ CREATE TABLE IF NOT EXISTS settings (
     parityInvert INTEGER NOT NULL DEFAULT 0,
     notifyTime1 TEXT,
     notifyTime2 TEXT,
-    intersectionStrictness INTEGER NOT NULL DEFAULT 50,
+    intersectionStrictness INTEGER NOT NULL DEFAULT 25,
     language TEXT NOT NULL DEFAULT 'ru',
     lastSyncAt TEXT,
     lastFetchedAt TEXT,
     lastAutoCheckAt TEXT,
     weekCount INTEGER NOT NULL DEFAULT 2,
     periodTitle TEXT,
-    periodStart TEXT
+    periodStart TEXT,
+    mapPanelWidth INTEGER NOT NULL DEFAULT 300,
+    alwaysShowAllTrafficLights INTEGER NOT NULL DEFAULT 0
 );
-INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCount, language) VALUES (1, 0, 50, 2, 'ru');
+INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCount, language) VALUES (1, 0, 25, 2, 'ru');
 -- migrations for existing DBs (v2 -> v3)
 -- add columns if missing (no error if exists, use try via separate statements executed below)
 ";
@@ -105,6 +108,10 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
         // lightweight migrations: add missing columns safely
         TryAddColumn("settings", "language", "TEXT NOT NULL DEFAULT 'ru'");
         TryAddColumn("settings", "lastAutoCheckAt", "TEXT");
+        TryAddColumn("settings", "mapPanelWidth", "INTEGER NOT NULL DEFAULT 300");
+        TryAddColumn("settings", "alwaysShowAllTrafficLights", "INTEGER NOT NULL DEFAULT 0");
+        // Migrate old strictness 50 (old default) to 25 (new default = "в вузе" visible) — buildings are close, red for "в вузе" was confusing
+        try { using var c = _conn.CreateCommand(); c.CommandText = "UPDATE settings SET intersectionStrictness=25 WHERE intersectionStrictness=50"; c.ExecuteNonQuery(); } catch {}
     }
 
     private void TryAddColumn(string table, string column, string definition)
@@ -121,9 +128,14 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
     public Settings GetSettings()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, language, lastSyncAt, lastFetchedAt, lastAutoCheckAt, weekCount, periodTitle, periodStart FROM settings WHERE id=1";
+        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, language, lastSyncAt, lastFetchedAt, lastAutoCheckAt, weekCount, periodTitle, periodStart, mapPanelWidth, alwaysShowAllTrafficLights FROM settings WHERE id=1";
         using var r = cmd.ExecuteReader();
         if (!r.Read()) return new Settings();
+        int mapW = 300;
+        try { mapW = r.IsDBNull(12) ? 300 : r.GetInt32(12); } catch { try { mapW = (int)r.GetInt64(12); } catch { mapW = 300; } }
+        if (mapW < 220) mapW = 220; if (mapW > 620) mapW = 620;
+        bool alwaysShow = false;
+        try { alwaysShow = !r.IsDBNull(13) && r.GetInt32(13) != 0; } catch { try { alwaysShow = !r.IsDBNull(13) && r.GetInt64(13) != 0; } catch {} }
         return new Settings
         {
             MyGroupId = r.IsDBNull(0) ? null : r.GetString(0),
@@ -137,18 +149,21 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
             LastAutoCheckAt = r.IsDBNull(8) ? null : r.GetString(8),
             WeekCount = r.GetInt32(9),
             PeriodTitle = r.IsDBNull(10) ? null : r.GetString(10),
-            PeriodStart = r.IsDBNull(11) ? null : r.GetString(11)
+            PeriodStart = r.IsDBNull(11) ? null : r.GetString(11),
+            MapPanelWidth = mapW,
+            AlwaysShowAllTrafficLights = alwaysShow
         };
     }
 
     public void SaveSettings(Settings s)
     {
         using var cmd = _conn.CreateCommand();
+        int mapW = s.MapPanelWidth; if (mapW < 220) mapW = 220; if (mapW > 620) mapW = 620;
         cmd.CommandText = @"
 UPDATE settings SET
     myGroupId=@g, parityInvert=@inv, notifyTime1=@t1, notifyTime2=@t2,
     intersectionStrictness=@strict, language=@lang, lastSyncAt=@sync, lastFetchedAt=@lf, lastAutoCheckAt=@lac,
-    weekCount=@wc, periodTitle=@pt, periodStart=@ps
+    weekCount=@wc, periodTitle=@pt, periodStart=@ps, mapPanelWidth=@mpw, alwaysShowAllTrafficLights=@all
 WHERE id=1";
         cmd.Parameters.AddWithValue("@g", (object?)s.MyGroupId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@inv", s.ParityInvert ? 1 : 0);
@@ -162,6 +177,8 @@ WHERE id=1";
         cmd.Parameters.AddWithValue("@wc", s.WeekCount);
         cmd.Parameters.AddWithValue("@pt", (object?)s.PeriodTitle ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@ps", (object?)s.PeriodStart ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@mpw", mapW);
+        cmd.Parameters.AddWithValue("@all", s.AlwaysShowAllTrafficLights ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
 
@@ -342,10 +359,11 @@ VALUES (@gid,@dow,@par,@idx,@ts,@te,@sub,@norm,@teach,@room,@build,@type,@cls,@r
     public long InsertFriend(FriendGroup f)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "INSERT INTO friends (groupName, colorHex, enabled) VALUES (@g,@c,@e); SELECT last_insert_rowid();";
+        cmd.CommandText = "INSERT INTO friends (groupName, colorHex, enabled, memberNames) VALUES (@g,@c,@e,@m); SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@g", f.GroupName);
         cmd.Parameters.AddWithValue("@c", f.ColorHex);
         cmd.Parameters.AddWithValue("@e", f.Enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@m", (object?)f.MemberNames ?? "");
         return (long)cmd.ExecuteScalar()!;
     }
 
@@ -353,11 +371,13 @@ VALUES (@gid,@dow,@par,@idx,@ts,@te,@sub,@norm,@teach,@room,@build,@type,@cls,@r
     {
         var list = new List<FriendGroup>();
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT id, groupName, colorHex, enabled FROM friends";
+        cmd.CommandText = "SELECT id, groupName, colorHex, enabled, memberNames FROM friends";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
-            list.Add(new FriendGroup { Id = r.GetInt64(0), GroupName = r.GetString(1), ColorHex = r.GetString(2), Enabled = r.GetInt32(3) != 0 });
+            string members = "";
+            try { members = r.IsDBNull(4) ? "" : r.GetString(4); } catch { members = ""; }
+            list.Add(new FriendGroup { Id = r.GetInt64(0), GroupName = r.GetString(1), ColorHex = r.GetString(2), Enabled = r.GetInt32(3) != 0, MemberNames = members });
         }
         return list;
     }
@@ -365,10 +385,11 @@ VALUES (@gid,@dow,@par,@idx,@ts,@te,@sub,@norm,@teach,@room,@build,@type,@cls,@r
     public void UpdateFriend(FriendGroup f)
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "UPDATE friends SET groupName=@g, colorHex=@c, enabled=@e WHERE id=@id";
+        cmd.CommandText = "UPDATE friends SET groupName=@g, colorHex=@c, enabled=@e, memberNames=@m WHERE id=@id";
         cmd.Parameters.AddWithValue("@g", f.GroupName);
         cmd.Parameters.AddWithValue("@c", f.ColorHex);
         cmd.Parameters.AddWithValue("@e", f.Enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@m", (object?)f.MemberNames ?? "");
         cmd.Parameters.AddWithValue("@id", f.Id);
         cmd.ExecuteNonQuery();
     }

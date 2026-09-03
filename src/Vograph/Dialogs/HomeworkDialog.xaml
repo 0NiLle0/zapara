@@ -8,10 +8,10 @@
             <TextBlock x:Name="LblTitle" Text="ДОМАШНЕЕ ЗАДАНИЕ" Style="{StaticResource SectionLabel}"/>
             <TextBlock x:Name="SubjectText" Text="Предмет: —" Foreground="{StaticResource MarbleDim}" FontSize="10" Margin="0,6,0,0"/>
             <TextBlock x:Name="LblHwText" Text="Текст задания" Foreground="{StaticResource Marble}" FontSize="11" Margin="0,10,0,4"/>
-            <TextBox x:Name="TxtHomework" Tag="Что задано?" Height="70" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+            <TextBox x:Name="TxtHomework" Tag="Что задано?" Height="70" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelAlt}" Foreground="{StaticResource Marble}" BorderBrush="{StaticResource BorderDim}" CaretBrush="{StaticResource Bronze}"/>
             <TextBlock x:Name="LblHwN" Text="Через сколько занятий этого предмета сдать (1..10)" Foreground="{StaticResource Marble}" FontSize="11" Margin="0,8,0,4"/>
             <StackPanel Orientation="Horizontal">
-                <TextBox x:Name="TxtN" Width="50" Text="1" Margin="0,0,8,0"/>
+                <TextBox x:Name="TxtN" Width="50" Text="1" Margin="0,0,8,0" Background="{StaticResource PanelAlt}" Foreground="{StaticResource Marble}" BorderBrush="{StaticResource BorderDim}" CaretBrush="{StaticResource Bronze}"/>
                 <TextBlock x:Name="DuePreview" Text="Срок: —" Foreground="{StaticResource Bronze}" FontSize="10" VerticalAlignment="Center"/>
             </StackPanel>
             <TextBlock x:Name="LblHwHint" Text="Статус: far (скрыт) → approaching (серый) → burning (яркий)" Foreground="{StaticResource MarbleDim}" FontSize="9" Margin="0,6,0,0" TextWrapping="Wrap"/>

@@ -292,41 +292,90 @@
         </Setter>
     </Style>
 
-    <!-- ComboBox (simplified from Charon) -->
+    <!-- ComboBox — dark Charon palette, Popup Panel/Bronze, works with ItemTemplate & DisplayMemberPath -->
     <Style TargetType="ComboBox">
         <Setter Property="IsSynchronizedWithCurrentItem" Value="False" />
         <Setter Property="Foreground" Value="{StaticResource Marble}" />
         <Setter Property="Background" Value="{StaticResource PanelAlt}" />
         <Setter Property="BorderBrush" Value="{StaticResource BorderDim}" />
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontFamily" Value="{StaticResource BodyFont}" />
         <Setter Property="FontSize" Value="11" />
-        <Setter Property="Height" Value="24" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="6,2" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="MaxDropDownHeight" Value="260" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
-                    <Grid>
-                        <ToggleButton Style="{StaticResource GearButton}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
-                        <!-- custom arrow -->
-                        <Border BorderThickness="1" CornerRadius="3" BorderBrush="{StaticResource BorderDim}" Background="{StaticResource PanelAlt}" IsHitTestVisible="False">
-                            <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#FF6B7280"/>
-                        </Border>
-                        <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False"
+                    <Grid x:Name="Root" SnapsToDevicePixels="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="22" />
+                        </Grid.ColumnDefinitions>
+                        <!-- Main border -->
+                        <Border x:Name="Bd" Grid.ColumnSpan="2" CornerRadius="3" BorderThickness="{TemplateBinding BorderThickness}"
+                                Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" />
+                        <!-- Selection content (non-editable) -->
+                        <ContentPresenter x:Name="ContentSite" IsHitTestVisible="False" Margin="8,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left"
                                           Content="{TemplateBinding SelectionBoxItem}"
-                                          Margin="8,0,22,0" VerticalAlignment="Center" HorizontalAlignment="Left"
-                                          TextElement.Foreground="{StaticResource Marble}" />
-                        <Popup x:Name="Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
-                               AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
-                            <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}"
-                                    BorderThickness="1" CornerRadius="3" Margin="0,4,0,0"
-                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                    MaxHeight="250">
-                                <Border.Effect><DropShadowEffect Color="#FF000000" BlurRadius="16" ShadowDepth="0" Opacity="0.45" /></Border.Effect>
-                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                                    <ItemsPresenter />
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                        <!-- Editable textbox (hidden by default) -->
+                        <TextBox x:Name="PART_EditableTextBox" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Hidden" IsReadOnly="{TemplateBinding IsReadOnly}"
+                                 Background="Transparent" Foreground="{StaticResource Marble}" BorderThickness="0" CaretBrush="{StaticResource Bronze}"
+                                 FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}" />
+                        <!-- Drop-down toggle -->
+                        <ToggleButton x:Name="ToggleButton" Grid.Column="1" Focusable="False"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      Background="Transparent" BorderThickness="0" Cursor="Hand">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="Transparent">
+                                        <Path x:Name="Arrow" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#FF6B7280" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Arrow" Property="Fill" Value="{StaticResource Marble}" />
+                                        </Trigger>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="Arrow" Property="Fill" Value="{StaticResource Bronze}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <!-- Popup -->
+                        <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade" StaysOpen="False">
+                            <Border x:Name="DropDownBorder" Background="{StaticResource Panel}" BorderBrush="{StaticResource Bronze}" BorderThickness="1" CornerRadius="3" Margin="0,4,0,0"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border.Effect><DropShadowEffect Color="#FF000000" BlurRadius="12" ShadowDepth="0" Opacity="0.45" /></Border.Effect>
+                                <ScrollViewer x:Name="DropDownScrollViewer" CanContentScroll="True" SnapsToDevicePixels="True" Background="Transparent">
+                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Bronze}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Bronze}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            <Setter Property="Foreground" Value="{StaticResource MarbleDim}" />
+                        </Trigger>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="DropDownBorder" Property="MinHeight" Value="40" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -350,6 +399,28 @@
                             <Setter TargetName="bd" Property="Background" Value="#FF222834"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ToolTip — dark, matches Charon palette (fixes white on hover) -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{StaticResource Panel}"/>
+        <Setter Property="Foreground" Value="{StaticResource Marble}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Bronze}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="7,4"/>
+        <Setter Property="FontFamily" Value="{StaticResource BodyFont}"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="HasDropShadow" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <Border.Effect><DropShadowEffect Color="#FF000000" BlurRadius="8" ShadowDepth="0" Opacity="0.45"/></Border.Effect>
+                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

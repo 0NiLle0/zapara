@@ -34,6 +34,19 @@ public static class ParityService
         return weekCode;
     }
 
+    public static int GetWeekNumber(DateTime date, DateTime periodStart)
+    {
+        var start = periodStart.Date;
+        int dow = (int)start.DayOfWeek;
+        if (dow == 0) dow = 7;
+        var monday = start.AddDays(-(dow - 1)).Date;
+        int days = (int)Math.Ceiling((date.Date - monday).TotalDays);
+        if (days < 1) days = 1;
+        int weekNumber = (int)Math.Ceiling(days / 7.0);
+        if (weekNumber < 1) weekNumber = 1;
+        return weekNumber;
+    }
+
     public static string NormalizeSubject(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "";

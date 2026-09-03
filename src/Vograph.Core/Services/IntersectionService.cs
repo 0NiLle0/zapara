@@ -42,13 +42,16 @@ public class IntersectionService
             {
                 if (!TimesOverlap(myLesson.TimeStart, myLesson.TimeEnd, fl.TimeStart, fl.TimeEnd)) continue;
                 int score = 0;
-                // sameBuilding +40, sameRoom +100, else sameTime 0
+                // New gradations per user (2026-09-01): нет на месте (no overlap handled as empty), в вузе, в том же корпусе, на том же этаже, в той же аудитории
                 bool sameRoom = !string.IsNullOrWhiteSpace(myLesson.RoomRaw) && !string.IsNullOrWhiteSpace(fl.RoomRaw) && myLesson.RoomRaw.Trim().Equals(fl.RoomRaw.Trim(), StringComparison.OrdinalIgnoreCase);
                 bool sameBuilding = !string.IsNullOrWhiteSpace(myLesson.BuildingRaw) && !string.IsNullOrWhiteSpace(fl.BuildingRaw) && myLesson.BuildingRaw.Trim().Equals(fl.BuildingRaw.Trim(), StringComparison.OrdinalIgnoreCase);
-                // Also consider ClassroomRaw containing same building code
-                if (sameRoom) score = 100;
-                else if (sameBuilding) score = 40;
-                else score = 0; // same time only
+                int floorMy = GetFloor(myLesson.RoomRaw);
+                int floorFr = GetFloor(fl.RoomRaw);
+                bool sameFloor = sameBuilding && floorMy != 0 && floorFr != 0 && floorMy == floorFr;
+                if (sameRoom) score = 100; // в той же аудитории
+                else if (sameFloor) score = 75; // на том же этаже
+                else if (sameBuilding) score = 50; // в том же корпусе
+                else score = 25; // в вузе (корпуса в упор, не красный) — same time, different building
 
                 // threshold check
                 bool matches = score >= strictness;
@@ -73,4 +76,24 @@ public class IntersectionService
         TimeSpan eB = TimeSpan.TryParse(endB, out var eb) ? eb : sB.Add(TimeSpan.FromMinutes(95));
         return sA < eB && sB < eA;
     }
+
+    private static int GetFloor(string? roomRaw)
+    {
+        if (string.IsNullOrWhiteSpace(roomRaw)) return 0;
+        var m = System.Text.RegularExpressions.Regex.Match(roomRaw, @"\d+");
+        if (!m.Success) return 0;
+        var digits = m.Value;
+        if (digits.Length == 0) return 0;
+        if (int.TryParse(digits[0].ToString(), out var f) && f >= 1 && f <= 9) return f;
+        return 0;
+    }
+
+    public static string ScoreToText(int score) => score switch
+    {
+        100 => "в той же аудитории",
+        75 => "на том же этаже",
+        50 => "в том же корпусе",
+        25 => "в вузе",
+        _ => "нет на месте"
+    };
 }
