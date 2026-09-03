@@ -8,8 +8,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Update
 
-// Room schema mirrors Windows Database.cs. Repositories + migrations land in A2.
+// Room schema mirrors Windows Database.cs (v2: overrides/homework/strictness/alwaysShow).
 
 @Entity(tableName = "groups")
 data class GroupEntity(
@@ -54,7 +55,31 @@ data class SettingsEntity(
     val periodStart: String? = null, // ISO yyyy-MM-dd
     val weekCount: Int = 2,
     val periodTitle: String? = null,
-    val lastFetchedAt: String? = null
+    val lastFetchedAt: String? = null,
+    val intersectionStrictness: Int = 25,
+    val alwaysShowAllTrafficLights: Boolean = false
+)
+
+@Entity(tableName = "overrides")
+data class OverrideEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val subjectRawNormalized: String,
+    val scope: String, // "global" | "weekday:N"
+    val displayName: String,
+    val note: String? = null,
+    val createdAt: String
+)
+
+@Entity(tableName = "homework")
+data class HomeworkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val subjectRawNormalized: String,
+    val text: String,
+    val createdAt: String, // ISO
+    val targetNthOccurrence: Int,
+    val dueDateComputed: String? = null, // ISO date
+    val status: String = "pending",
+    val doneAt: String? = null
 )
 
 @Dao
@@ -92,6 +117,9 @@ interface FriendDao {
     @Insert
     fun insert(friend: FriendEntity): Long
 
+    @Update
+    fun update(friend: FriendEntity)
+
     @Query("SELECT * FROM friends")
     fun getAll(): List<FriendEntity>
 
@@ -108,9 +136,59 @@ interface SettingsDao {
     fun save(settings: SettingsEntity)
 }
 
+@Dao
+interface OverrideDao {
+    @Query("SELECT * FROM overrides")
+    fun getAll(): List<OverrideEntity>
+
+    @Insert
+    fun insert(e: OverrideEntity): Long
+
+    @Query("DELETE FROM overrides WHERE subjectRawNormalized = :norm AND scope = :scope")
+    fun deleteByKey(norm: String, scope: String): Int
+
+    @Query("DELETE FROM overrides WHERE id = :id")
+    fun deleteById(id: Long): Int
+}
+
+@Dao
+interface HomeworkDao {
+    @Query("SELECT * FROM homework ORDER BY dueDateComputed")
+    fun getAll(): List<HomeworkEntity>
+
+    @Query("SELECT * FROM homework WHERE id = :id LIMIT 1")
+    fun getById(id: Long): HomeworkEntity?
+
+    @Insert
+    fun insert(e: HomeworkEntity): Long
+
+    @Update
+    fun update(e: HomeworkEntity)
+
+    @Query("DELETE FROM homework WHERE id = :id")
+    fun deleteById(id: Long): Int
+}
+
+val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS overrides (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "subjectRawNormalized TEXT NOT NULL, scope TEXT NOT NULL, displayName TEXT NOT NULL, " +
+                "note TEXT, createdAt TEXT NOT NULL)"
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS homework (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "subjectRawNormalized TEXT NOT NULL, text TEXT NOT NULL, createdAt TEXT NOT NULL, " +
+                "targetNthOccurrence INTEGER NOT NULL, dueDateComputed TEXT, status TEXT NOT NULL, doneAt TEXT)"
+        )
+        db.execSQL("ALTER TABLE settings ADD COLUMN intersectionStrictness INTEGER NOT NULL DEFAULT 25")
+        db.execSQL("ALTER TABLE settings ADD COLUMN alwaysShowAllTrafficLights INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
-    entities = [GroupEntity::class, LessonEntity::class, FriendEntity::class, SettingsEntity::class],
-    version = 1,
+    entities = [GroupEntity::class, LessonEntity::class, FriendEntity::class, SettingsEntity::class, OverrideEntity::class, HomeworkEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class ZaparaDatabase : RoomDatabase() {
@@ -118,4 +196,6 @@ abstract class ZaparaDatabase : RoomDatabase() {
     abstract fun lessonDao(): LessonDao
     abstract fun friendDao(): FriendDao
     abstract fun settingsDao(): SettingsDao
+    abstract fun overrideDao(): OverrideDao
+    abstract fun homeworkDao(): HomeworkDao
 }

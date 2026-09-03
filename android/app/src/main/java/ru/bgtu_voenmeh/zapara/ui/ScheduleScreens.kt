@@ -1,8 +1,10 @@
-package ru.bgtu_voenmeh.zapara.ui
+﻿package ru.bgtu_voenmeh.zapara.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,10 +36,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.bgtu_voenmeh.zapara.data.Lesson
+import ru.bgtu_voenmeh.zapara.data.Homework
 import ru.bgtu_voenmeh.zapara.data.Parity
 import ru.bgtu_voenmeh.zapara.ui.theme.BorderDim
 import ru.bgtu_voenmeh.zapara.ui.theme.Bronze
@@ -63,6 +68,9 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 color = MarbleDim, fontSize = 10.sp, modifier = Modifier.weight(1f)
             )
             RefreshButton(vm)
+            TextButton(onClick = { vm.openDialog(UiDialog.Friends) }) {
+                Text("Друзья", color = Bronze, fontSize = 11.sp)
+            }
         }
         Spacer(Modifier.height(8.dp))
         // Group picker
@@ -109,7 +117,7 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             s.error != null -> Text("Ошибка: ${s.error}", color = Marble, fontSize = 11.sp)
             s.tab == Tab.Week -> WeekView(vm)
             s.tab == Tab.Summary -> SummaryView(s.summary)
-            else -> DayView(lessons = s.lessons, nextFor = { s.nextMap[it.subjectNormalized] ?: "—" })
+            else -> DayView(vm)
         }
     }
 }
@@ -160,7 +168,9 @@ private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String
 }
 
 @Composable
-private fun DayView(lessons: List<Lesson>, nextFor: (Lesson) -> String) {
+private fun DayView(vm: ScheduleViewModel) {
+    val s = vm.state
+    val lessons = s.lessons
     if (lessons.isEmpty()) {
         Text("Нет занятий", color = MarbleDim, fontSize = 11.sp)
         return
@@ -176,45 +186,180 @@ private fun DayView(lessons: List<Lesson>, nextFor: (Lesson) -> String) {
                     Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp))
                     Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
                     Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
-                    Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
+                    Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
+                    Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
+                    Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(96.dp))
+                    Spacer(Modifier.width(56.dp))
                 }
             }
         }
-        itemsIndexed(lessons.sortedBy { it.timeStart }) { idx, l ->
-            LessonCard(number = idx + 1, lesson = l, next = nextFor(l))
+        itemsIndexed(lessons) { order, l ->
+            LessonCard(
+                number = order + 1,
+                lesson = l,
+                displayName = vm.displayName(l),
+                note = vm.displayNote(l),
+                next = s.nextMap[l.subjectNormalized] ?: "—",
+                dots = s.traffic.getOrElse(order) { emptyList() },
+                homeworks = s.hwMap[l.subjectNormalized].orEmpty(),
+                onRename = { vm.openRename(l) },
+                onHomework = { vm.openDialog(UiDialog.Homework(order)) },
+                onHwToggle = { hw -> vm.toggleHomework(hw.id, hw.status != "done") },
+                onHwDelete = { hw -> vm.deleteHomework(hw.id) }
+            )
+        }
+    }
+    // Dialogs
+    when (val d = s.dialog) {
+        is UiDialog.Rename -> {
+            val l = s.lessons.getOrNull(d.lessonIndex) ?: return
+            RenameDialog(
+                lesson = l,
+                initialName = d.initialName,
+                initialNote = d.initialNote,
+                initialGlobal = true,
+                onSave = { name, note, global -> vm.saveRename(l, name, note, global) },
+                onReset = { vm.resetRename(l) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.Homework -> {
+            val l = s.lessons.getOrNull(d.lessonIndex) ?: return
+            HomeworkDialog(
+                lesson = l,
+                duePreview = { n -> vm.hwDuePreview(l, n) },
+                onSave = { text, n -> vm.saveHomework(l, text, n) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.Friends -> {
+            FriendsDialog(
+                friends = s.friends,
+                allGroups = s.groups,
+                alwaysShow = s.alwaysShow,
+                invertParity = s.invert,
+                onToggleAlwaysShow = { vm.toggleAlwaysShow(it) },
+                onToggleInvert = { vm.toggleInvert(it) },
+                onAdd = { vm.addFriend(it) },
+                onRemove = { vm.removeFriend(it) },
+                onSaveNames = { f, names -> vm.saveMemberNames(f, names) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.None -> {}
+    }
+}
+
+@Composable
+private fun TrafficDots(dots: List<TrafficDot>) {
+    Column {
+        if (dots.isEmpty()) {
+            OffDot()
+        } else {
+            dots.take(5).forEach { d ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                    if (d.score < 0) {
+                        OffDot()
+                    } else {
+                        val (fill, glow) = when {
+                            d.score >= 100 -> Patina to Patina
+                            d.score >= 75 -> androidx.compose.ui.graphics.Color(0xFFA8E6A0) to androidx.compose.ui.graphics.Color(0xFFA8E6A0)
+                            d.score >= 50 -> androidx.compose.ui.graphics.Color(0xFFF2C55C) to androidx.compose.ui.graphics.Color(0xFFF2C55C)
+                    else -> androidx.compose.ui.graphics.Color(0xFF6CA5E0) to androidx.compose.ui.graphics.Color(0xFF6CA5E0)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(12.dp)
+                            .height(12.dp)
+                            .shadow(6.dp, CircleShape, true, glow, glow)
+                            .background(fill, CircleShape)
+                    )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    val label = if (d.memberNames.isBlank()) "- ${d.friendGroup}"
+                    else "- ${d.friendGroup} (${d.memberNames})"
+                    Text(
+                        label, color = MarbleDim, fontSize = 9.sp, maxLines = 1,
+                        modifier = Modifier.width(80.dp)
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun LessonCard(number: Int, lesson: Lesson, next: String) {
+private fun OffDot() {
+    Box(
+        modifier = Modifier
+            .width(12.dp)
+            .height(12.dp)
+            .background(
+                androidx.compose.ui.graphics.Color(0xFF1E252E),
+                androidx.compose.foundation.shape.CircleShape
+            )
+    )
+}
+
+@Composable
+private fun LessonCard(
+    number: Int,
+    lesson: Lesson,
+    displayName: String,
+    note: String,
+    next: String,
+    dots: List<TrafficDot>,
+    homeworks: List<Homework>,
+    onRename: () -> Unit,
+    onHomework: () -> Unit,
+    onHwToggle: (Homework) -> Unit,
+    onHwDelete: (Homework) -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Panel),
         border = BorderStroke(1.dp, BorderDim)
     ) {
-        Row(Modifier.padding(7.dp)) {
-            Text(number.toString(), color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(28.dp))
-            Text(
-                if (lesson.timeStart.isEmpty()) "—" else "${lesson.timeStart}\n${lesson.timeEnd}",
-                color = Marble, fontSize = 11.sp, modifier = Modifier.width(64.dp)
-            )
-            Column(Modifier.weight(1f)) {
-                val subj = buildString {
-                    if (lesson.typeRaw.isNotEmpty()) append("[${lesson.typeRaw}] ")
-                    append(lesson.subjectRaw.ifEmpty { "—" })
-                }
-                Text(subj, color = Marble, fontSize = 11.sp)
+        Column(Modifier.padding(7.dp)) {
+            Row {
+                Text(number.toString(), color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(28.dp))
                 Text(
-                    lesson.teacherRaw.ifEmpty { "—" },
-                    color = MarbleDim, fontSize = 10.sp
+                    if (lesson.timeStart.isEmpty()) "—" else "${lesson.timeStart}\n${lesson.timeEnd}",
+                    color = Marble, fontSize = 11.sp, modifier = Modifier.width(64.dp)
                 )
+                Column(Modifier.weight(1f)) {
+                    val subj = buildString {
+                        if (lesson.typeRaw.isNotEmpty()) append("[${lesson.typeRaw}] ")
+                        append(displayName.ifEmpty { "—" })
+                    }
+                    Text(
+                        subj, color = Marble, fontSize = 11.sp,
+                        fontWeight = if (displayName != lesson.subjectRaw) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                    if (displayName != lesson.subjectRaw) {
+                        Text(lesson.subjectRaw, color = MarbleDim, fontSize = 9.sp)
+                    }
+                    if (note.isNotEmpty()) {
+                        Text(note, color = Bronze, fontSize = 9.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                    }
+                    Text(
+                        lesson.teacherRaw.ifEmpty { "—" },
+                        color = MarbleDim, fontSize = 10.sp
+                    )
+                }
+                Text(
+                    lesson.classroomRaw.ifEmpty { "—" },
+                    color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(56.dp)
+                )
+                Text(next, color = Patina, fontSize = 10.sp, modifier = Modifier.width(56.dp))
+                TrafficDots(dots)
+                Column {
+                    TextButton(onClick = onRename) { Text("✎", color = Marble, fontSize = 10.sp) }
+                    TextButton(onClick = onHomework) { Text("+", color = Marble, fontSize = 10.sp) }
+                }
             }
-            Text(
-                lesson.classroomRaw.ifEmpty { "—" },
-                color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(64.dp)
-            )
-            Text(next, color = Patina, fontSize = 10.sp, modifier = Modifier.width(64.dp))
+            homeworks.forEach { hw ->
+                HomeworkRow(hw = hw, onToggle = { onHwToggle(hw) }, onDelete = { onHwDelete(hw) })
+            }
         }
     }
 }

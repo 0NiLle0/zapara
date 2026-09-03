@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.bgtu_voenmeh.zapara.data.db.GroupEntity
 import ru.bgtu_voenmeh.zapara.data.db.LessonEntity
+import ru.bgtu_voenmeh.zapara.data.db.MIGRATION_1_2
 import ru.bgtu_voenmeh.zapara.data.db.SettingsEntity
 import ru.bgtu_voenmeh.zapara.data.db.ZaparaDatabase
 import java.net.HttpURLConnection
@@ -20,6 +21,10 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
         @Volatile
         private var instance: ScheduleRepository? = null
 
+        /** Test hook: when false, ensureData() never touches network. Default true (production). */
+        @Volatile
+        var networkEnabled = true
+
         fun get(context: Context): ScheduleRepository {
             return instance ?: synchronized(this) {
                 instance ?: ScheduleRepository(
@@ -27,7 +32,7 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
                         context.applicationContext,
                         ZaparaDatabase::class.java,
                         "zapara.db"
-                    ).build()
+                    ).addMigrations(MIGRATION_1_2).build()
                 ).also { instance = it }
             }
         }
@@ -40,7 +45,9 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
         val periodStart: LocalDate = LocalDate.of(2026, 9, 1),
         val weekCount: Int = 2,
         val periodTitle: String? = null,
-        val lastFetchedAt: String? = null
+        val lastFetchedAt: String? = null,
+        val intersectionStrictness: Int = 25,
+        val alwaysShowAllTrafficLights: Boolean = false
     )
 
     fun settings(): SettingsState {
@@ -53,7 +60,9 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
                 ?: LocalDate.of(2026, 9, 1),
             weekCount = if (s.weekCount > 0) s.weekCount else 2,
             periodTitle = s.periodTitle,
-            lastFetchedAt = s.lastFetchedAt
+            lastFetchedAt = s.lastFetchedAt,
+            intersectionStrictness = s.intersectionStrictness,
+            alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights
         )
     }
 
@@ -66,7 +75,9 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
                 periodStart = s.periodStart.toString(),
                 weekCount = s.weekCount,
                 periodTitle = s.periodTitle,
-                lastFetchedAt = s.lastFetchedAt
+                lastFetchedAt = s.lastFetchedAt,
+                intersectionStrictness = s.intersectionStrictness,
+                alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights
             )
         )
     }
@@ -83,7 +94,10 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
     }
 
     suspend fun ensureData(): Unit = withContext(Dispatchers.IO) {
-        if (db.groupDao().getAll().isEmpty()) refresh()
+        if (db.groupDao().getAll().isEmpty()) {
+            if (!networkEnabled) throw IllegalStateException("empty db and network disabled (tests)")
+            refresh()
+        }
     }
 
     suspend fun refresh(url: String = GroupParser.DEFAULT_URL): Unit = withContext(Dispatchers.IO) {

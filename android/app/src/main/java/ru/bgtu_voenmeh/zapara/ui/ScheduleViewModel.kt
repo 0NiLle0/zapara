@@ -12,8 +12,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
+import ru.bgtu_voenmeh.zapara.data.Friend
+import ru.bgtu_voenmeh.zapara.data.Homework
+import ru.bgtu_voenmeh.zapara.data.HomeworkService
+import ru.bgtu_voenmeh.zapara.data.IntersectionService
 import ru.bgtu_voenmeh.zapara.data.Lesson
+import ru.bgtu_voenmeh.zapara.data.OverrideService
 import ru.bgtu_voenmeh.zapara.data.Parity
+import ru.bgtu_voenmeh.zapara.data.SchedCtx
 import ru.bgtu_voenmeh.zapara.data.Schedule
 import ru.bgtu_voenmeh.zapara.data.ScheduleRepository
 import java.time.DayOfWeek
@@ -46,6 +52,18 @@ data class ScheduleUiState(
     val allLessons: List<Lesson> = emptyList(),
     /** subjectNormalized -> "dd.MM eee" for current day rows (computed off-main-thread) */
     val nextMap: Map<String, String> = emptyMap(),
+    /** traffic dots aligned with [lessons] order */
+    val traffic: List<List<TrafficDot>> = emptyList(),
+    /** subjectNormalized -> visible homework (far hidden) */
+    val hwMap: Map<String, List<Homework>> = emptyMap(),
+    /** "norm|dow" -> display name (precomputed off-main-thread) */
+    val displayMap: Map<String, String> = emptyMap(),
+    /** "norm|dow" -> note */
+    val noteMap: Map<String, String> = emptyMap(),
+    val friends: List<Friend> = emptyList(),
+    val alwaysShow: Boolean = false,
+    val invert: Boolean = false,
+    val dialog: UiDialog = UiDialog.None,
     val summary: List<SummarySection> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null
@@ -55,6 +73,17 @@ private val RU = Locale("ru")
 
 class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ScheduleRepository.get(app)
+    private val overrides = OverrideService(repo.db.overrideDao())
+    private val homework = HomeworkService(
+        repo.db.homeworkDao(),
+        lessonsFor = { gid, dow, parity ->
+            repo.allForGroup(gid).filter { it.dayOfWeek == dow && (it.parity == parity || it.parity == 0) }
+        },
+        ctx = {
+            val st = repo.settings()
+            SchedCtx(st.myGroupId.orEmpty(), st.periodStart, st.weekCount, st.parityInvert)
+        }
+    )
     var state by mutableStateOf(ScheduleUiState())
         private set
 
@@ -106,6 +135,23 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Re-render from current DB without network (used by tests). */
+    fun reload() {        viewModelScope.launch {
+            try {
+                val groups = withContext(Dispatchers.IO) { repo.groups() }
+                val s = withContext(Dispatchers.IO) { repo.settings() }
+                val gid = state.groupId.ifEmpty {
+                    s.myGroupId?.takeIf { id -> groups.any { it.id == id } }
+                        ?: groups.firstOrNull { it.id == "3313" }?.id
+                        ?: groups.firstOrNull()?.id.orEmpty()
+                }
+                render(state.tab, gid, state.weekParity, groups, gid)
+            } catch (e: Exception) {
+                state = state.copy(loading = false, error = e.message ?: "reload error")
+            }
+        }
+    }
+
     private fun smartStartTab(groupId: String): Tab {
         return try {
             val today = LocalDate.now()
@@ -138,7 +184,33 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         val all = withContext(Dispatchers.IO) { repo.allForGroup(id) }
         val dayLessons = if (tab == Tab.Week || tab == Tab.Summary) emptyList()
         else Schedule.lessonsForDate(all, id, date, s.periodStart, s.weekCount, s.parityInvert)
-        val summary = if (tab == Tab.Summary) buildSummary(all) else emptyList()
+        val summary = if (tab == Tab.Summary) withContext(Dispatchers.IO) { buildSummary(all) } else emptyList()
+        val (traffic, hwMap) = withContext(Dispatchers.IO) {
+            homework.recomputeAll()
+            val dots = if (tab == Tab.Week || tab == Tab.Summary) emptyList()
+            else dayLessons.map { l -> trafficFor(l, date, s) }
+            val hw = dayLessons
+                .map { it.subjectNormalized }.distinct()
+                .associateWith { norm ->
+                    homework.forSubjectByNorm(norm)
+                        .filter { it.status != "far" }
+                        .sortedBy { hwOrder(it.status) }
+                }
+            dots to hw
+        }
+        val (displayMap, noteMap) = withContext(Dispatchers.IO) {
+            val keys = dayLessons.map { "${it.subjectNormalized}|${it.dayOfWeek}" }.distinct()
+            // Store only non-empty display names so UI falls back to raw subject.
+            keys.associateWith { key ->
+                val norm = key.substringBefore("|")
+                val dow = key.substringAfter("|").toIntOrNull() ?: 0
+                overrides.displayNameByNorm(norm, dow)
+            }.filterValues { it.isNotEmpty() } to keys.associateWith { key ->
+                val norm = key.substringBefore("|")
+                val dow = key.substringAfter("|").toIntOrNull() ?: 0
+                overrides.noteByNorm(norm, dow)
+            }
+        }
         val nextMap = if (tab == Tab.Week || tab == Tab.Summary) emptyMap()
         else dayLessons.associate { l ->
             val d = Schedule.nextOccurrenceBySubject(
@@ -158,17 +230,227 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             lessons = dayLessons,
             allLessons = all,
             nextMap = nextMap,
+            traffic = traffic,
+            hwMap = hwMap,
+            displayMap = displayMap,
+            noteMap = noteMap,
+            friends = withContext(Dispatchers.IO) { repoFriends() },
+            alwaysShow = s.alwaysShowAllTrafficLights,
+            invert = s.parityInvert,
+            dialog = state.dialog,
             summary = summary, loading = false, error = null
         )
     }
 
-    private fun buildSummary(all: List<Lesson>): List<SummarySection> {
+    private fun repoFriends(): List<Friend> =
+        repo.db.friendDao().getAll().map {
+            Friend(it.groupName, it.colorHex, it.enabled, it.memberNames)
+        }
+
+    private fun trafficFor(
+        lesson: Lesson,
+        date: LocalDate,
+        s: ScheduleRepository.SettingsState
+    ): List<TrafficDot> {
+        val friends = repoFriends().filter { it.enabled }.take(5)
+        if (friends.isEmpty()) return emptyList()
+        val groups = repo.groups().associate { it.name to it.id }
+        val inters = IntersectionService.intersections(
+            my = lesson, date = date, friends = friends,
+            strictness = s.intersectionStrictness,
+            periodStart = s.periodStart, weekCount = s.weekCount, invert = s.parityInvert,
+            lessonsFor = { fid, dow, parity ->
+                repo.allForGroup(fid).filter { it.dayOfWeek == dow && (it.parity == parity || it.parity == 0) }
+            },
+            resolveId = { name -> groups[name] }
+        )
+        return if (s.alwaysShowAllTrafficLights) {
+            val byGroup = inters.associateBy { it.friendGroupName }
+            friends.map { f ->
+                val hit = byGroup[f.groupName]
+                if (hit != null) TrafficDot(f.groupName, f.memberNames, hit.score, hit.teacher, hit.room)
+                else TrafficDot(f.groupName, f.memberNames, -1, "", "")
+            }
+        } else {
+            inters.map { hit ->
+                val f = friends.firstOrNull { it.groupName == hit.friendGroupName }
+                TrafficDot(hit.friendGroupName, f?.memberNames.orEmpty(), hit.score, hit.teacher, hit.room)
+            }
+        }
+    }
+
+    private fun hwOrder(status: String): Int = when (status) {
+        "burning_urgent" -> 0
+        "burning" -> 1
+        "overdue" -> 2
+        "approaching" -> 3
+        "far" -> 4
+        "done" -> 5
+        else -> 6
+    }
+
+    // ---- Dialog actions (all IO) ----
+
+    fun openDialog(d: UiDialog) {
+        state = state.copy(dialog = d)
+    }
+
+    fun openRename(lesson: Lesson) {
+        viewModelScope.launch {
+            val (name, note) = withContext(Dispatchers.IO) {
+                overrides.displayName(lesson.subjectRaw, lesson.dayOfWeek) to
+                    overrides.note(lesson.subjectRaw, lesson.dayOfWeek)
+            }
+            val idx = state.lessons.indexOf(lesson).takeIf { it >= 0 } ?: return@launch
+            state = state.copy(dialog = UiDialog.Rename(idx, name, note))
+        }
+    }
+
+    fun closeDialog() {
+        state = state.copy(dialog = UiDialog.None)
+    }
+
+    fun displayName(lesson: Lesson): String =
+        state.displayMap["${lesson.subjectNormalized}|${lesson.dayOfWeek}"] ?: lesson.subjectRaw
+
+    fun displayNote(lesson: Lesson): String =
+        state.noteMap["${lesson.subjectNormalized}|${lesson.dayOfWeek}"].orEmpty()
+
+    fun saveRename(lesson: Lesson, displayName: String, note: String, global: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                overrides.addOrUpdate(
+                    lesson.subjectRaw,
+                    if (global) "global" else "weekday:${lesson.dayOfWeek}",
+                    displayName.ifBlank { lesson.subjectRaw }, note.ifBlank { null }
+                )
+            }
+            closeDialog()
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun resetRename(lesson: Lesson) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val norm = Parity.normalizeSubject(lesson.subjectRaw)
+                overrides.all().filter { it.subjectRawNormalized == norm }
+                    .forEach { overrides.remove(it.id) }
+            }
+            closeDialog()
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun hwDuePreview(lesson: Lesson, n: Int): String {
+        return try {
+            val st = repo.settings()
+            val due = homework.computeDueDate(
+                Parity.normalizeSubject(lesson.subjectRaw), LocalDate.now(), n.coerceIn(1, 10)
+            )
+            if (due == null) "Срок: — (нет занятий)"
+            else "Срок: %02d.%02d.%d".format(due.dayOfMonth, due.monthValue, due.year)
+        } catch (_: Exception) {
+            "Срок: —"
+        }
+    }
+
+    fun saveHomework(lesson: Lesson, text: String, n: Int) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                homework.addHomework(lesson.subjectRaw, text, n, LocalDate.now())
+            }
+            closeDialog()
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun toggleHomework(id: Long, done: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { homework.markDone(id, done) }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun deleteHomework(id: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { homework.delete(id) }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun addFriend(groupName: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val existing = repo.db.friendDao().getAll()
+                if (existing.size >= 5 || existing.any { it.groupName == groupName }) return@withContext
+                val colors = listOf("#FF6CA5E0", "#FF98C379", "#FFE06C75", "#FFC678DD", "#FFF2C55C")
+                repo.db.friendDao().insert(
+                    ru.bgtu_voenmeh.zapara.data.db.FriendEntity(
+                        groupName = groupName,
+                        colorHex = colors[existing.size % colors.size],
+                        enabled = true
+                    )
+                )
+            }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun removeFriend(friend: Friend) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val e = repo.db.friendDao().getAll().firstOrNull { it.groupName == friend.groupName }
+                if (e != null) repo.db.friendDao().delete(e.id)
+            }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun saveMemberNames(friend: Friend, names: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val e = repo.db.friendDao().getAll().firstOrNull { it.groupName == friend.groupName }
+                if (e != null && e.memberNames != names) {
+                    repo.db.friendDao().update(e.copy(memberNames = names))
+                }
+            }
+            // light refresh (no full render to keep typing smooth — caller re-renders on focus loss)
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun toggleAlwaysShow(value: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val st = repo.settings()
+                repo.saveSettings(st.copy(alwaysShowAllTrafficLights = value))
+            }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun toggleInvert(value: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val st = repo.settings()
+                repo.saveSettings(st.copy(parityInvert = value))
+            }
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    private suspend fun buildSummary(all: List<Lesson>): List<SummarySection> {
+        // Resolve override display names off-main-thread.
+        val displayOf: (Lesson) -> String = { l ->
+            overrides.displayNameByNorm(l.subjectNormalized, l.dayOfWeek).ifEmpty { l.subjectRaw }
+        }
         fun section(title: String, list: List<Lesson>): SummarySection {
             val byDay = list.groupBy { it.dayOfWeek }.toSortedMap()
                 .map { (d, v) -> Parity.dayNumberToTitle(d).take(2) to v.size }
             val byType = list.groupBy { it.typeRaw.ifBlank { "—" } }
                 .map { (k, v) -> k to v.size }.sortedByDescending { it.second }
-            val bySubject = list.groupBy { it.subjectRaw.ifBlank { "—" } }
+            val bySubject = list.groupBy { l -> displayOf(l).ifBlank { "—" } }
                 .map { (k, v) -> k to v.size }.sortedByDescending { it.second }
             val byTeacher = list.filter { it.teacherRaw.isNotBlank() && it.teacherRaw != "—" }
                 .flatMap { l -> l.teacherRaw.split(";").map { it.trim() }.filter { it.isNotEmpty() } }

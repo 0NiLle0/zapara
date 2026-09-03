@@ -77,3 +77,30 @@
 
 ### Next
 - Auto-advance to Phase A3: personalization (overrides/homework) + friend traffic lights
+
+## Phase A3 — Personalization + traffic lights (2026-09-03)
+
+**Status:** DONE
+
+### Verification Checklist
+- [x] JVM: OverrideService global>weekday, Homework N=2 due + 5 statuses, CRUD — green
+- [x] Device: override/homework/traffic/friends-dialog render (instrumented, text-tree asserts)
+- [x] All 5 traffic gradations in code (100/75/50/25/off-dimmed) + member names + always-show mode
+
+### Raw numbers
+- JVM tests: 33 total (25 A1 + Override 1 + Homework 3 + ... = 29 unit + ... ) — 0 failures
+  - Precisely: Parity 4, GroupParser 4, LecturerParser 2, Intersection 4, MapResolve 6, Schedule 5, Override 1, Homework 3 = 29 unit tests green
+  - Homework N=2 for `лек ВЫСШ. МАТЕМАТ` from 2026-09-01 → due 2026-09-14 (norm includes type prefix; Wed 09-09 even is `пр`, not counted)
+  - Statuses verified: burning_urgent/burning/approaching/overdue/done/far
+- Instrumented `ScheduleFlowTest` 2/2 green on Pixel 7 AVD (seed 2 groups/12 lessons/1 override/1 hw/1 friend):
+  - `[лек] МАТАН` + original line, `прочитать §5` block, `- 09С31 (Иван)` traffic, `Друзья (до 5)` dialog + `Всегда все светофоры` toggle
+- Room v2 `MIGRATION_1_2` (overrides/homework/settings columns); `networkEnabled` test hook in repository
+- Test-infra lessons (emulator): `XmlPullParser` unusable in JVM tests → DOM via `javax.xml`; main-thread Room crashes → IO-only access + precomputed maps; compose finders see stale snapshots → tree-dump polling asserts; rule launches before `@Before` → `@BeforeClass` flag + per-test reseed + `reload()`
+
+### Logs
+- `app/build/test-results/testDebugUnitTest/TEST-*.xml` (8 files green)
+- `adb logcat ZaparaTest`: seed counts + `tree n=39 :: ЗАПАРА ## Группа А863С ... ## [лек] МАТАН ## ... ## - 09С31 (Иван) ## ... ## прочитать §5 ...`
+- `app-debug.apk` ~10.7 MB
+
+### Next
+- Auto-advance to Phase A4: offline maps + teacher finder
