@@ -49,3 +49,31 @@
 
 ### Next
 - Auto-advance to Phase A2: schedule UI (tabs, dark theme, responsive table, summary)
+
+## Phase A2 — Schedule UI (2026-09-03)
+
+**Status:** DONE
+
+### Verification Checklist
+- [x] Tomorrow tab (smart start → Fri 09-04, Thu lessons over) shows 3 rows matching raw XML
+- [x] Week odd view matches raw XML (Mon 4 / Tue 4 / Wed 4 / Thu 2 shown)
+- [x] Summary odd = 18, byDay exact, byType exact, counts left (per user rule)
+- [x] Dark Charon theme + mono font, `ЗАПАРА` header, group dropdown `А863С`
+- [x] Screenshots `docs/a2_tomorrow.png`, `docs/a2_week.png`, `docs/a2_summary.png`
+
+### Raw numbers
+- Emulator: Pixel 7 AVD, android-34 google_apis x86_64, headless swiftshader; app `ru.bgtu_voenmeh.zapara` installed + launched
+- Smart start: Thu 09-03 17:39 local > last lesson end 16:30+15m → Tomorrow Fri 09-04 odd
+- Fri odd rows: `09:00 [лек] ВВЕД. В СПЕЦ / Саваровский / 313; / next 18.09` · `10:50 [пр] ОСН. ГОС. УПР. / Хомелева / 526*; / 18.09` · `12:40 [лаб] ФИЗИКА / Попова / 563*; / next 11.09` — all match `TimetableGroup50.xml` dow=5 wc=1 (ASCII dump: 5 lessons total, odd 3)
+- Week odd: Mon `09:00 493; / 10:50 — / 12:40 563*; / 14:55 502*;` · Tue `10:50 526*; / 12:40 401*; / 14:55 312*; / 16:45 526*;` · Wed `09:00 526*; / 10:50 — / 12:40 323*; / 14:55 564*;` · Thu `09:00 564*; / 10:50 ВЦ 282;` — match
+- Summary: odd 18 (`Пн 4 · Вт 4 · Ср 4 · Чт 2 · Пт 3 · Сб 1`), `пр 9 · лек 8 · лаб 1`
+- `app-debug.apk` 10 664 358b
+- Note: initial Friday-row confusion resolved — garbled console misattributed Wed `лаб ФИЗИКА 323*;` to Fri; ASCII dump confirmed app is correct
+
+### Logs
+- Verification via `adb shell uiautomator dump` text (screenshots unreadable in this console, PNGs kept in `docs/`)
+- Room on IO dispatcher only (main-thread access refactored: `nextMap`/`allLessons` precomputed in `render()`)
+- Fixes during phase: ExposedDropdownMenu API, Typography monospace mapping, ExposedDropdownMenuBox params
+
+### Next
+- Auto-advance to Phase A3: personalization (overrides/homework) + friend traffic lights

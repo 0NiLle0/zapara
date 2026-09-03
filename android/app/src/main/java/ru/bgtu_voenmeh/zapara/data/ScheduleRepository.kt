@@ -1,0 +1,145 @@
+package ru.bgtu_voenmeh.zapara.data
+
+import android.content.Context
+import androidx.room.Room
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import ru.bgtu_voenmeh.zapara.data.db.GroupEntity
+import ru.bgtu_voenmeh.zapara.data.db.LessonEntity
+import ru.bgtu_voenmeh.zapara.data.db.SettingsEntity
+import ru.bgtu_voenmeh.zapara.data.db.ZaparaDatabase
+import java.net.HttpURLConnection
+import java.net.URL
+import java.time.LocalDate
+import java.time.LocalTime
+
+// Schedule repository: network fetch -> parse -> Room. A2 scope (no overrides/homework/friends logic yet).
+class ScheduleRepository private constructor(val db: ZaparaDatabase) {
+
+    companion object {
+        @Volatile
+        private var instance: ScheduleRepository? = null
+
+        fun get(context: Context): ScheduleRepository {
+            return instance ?: synchronized(this) {
+                instance ?: ScheduleRepository(
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        ZaparaDatabase::class.java,
+                        "zapara.db"
+                    ).build()
+                ).also { instance = it }
+            }
+        }
+    }
+
+    data class SettingsState(
+        val myGroupId: String? = null,
+        val parityInvert: Boolean = false,
+        val language: String = "ru",
+        val periodStart: LocalDate = LocalDate.of(2026, 9, 1),
+        val weekCount: Int = 2,
+        val periodTitle: String? = null,
+        val lastFetchedAt: String? = null
+    )
+
+    fun settings(): SettingsState {
+        val s = db.settingsDao().get() ?: return SettingsState()
+        return SettingsState(
+            myGroupId = s.myGroupId,
+            parityInvert = s.parityInvert,
+            language = s.language,
+            periodStart = runCatching { LocalDate.parse(s.periodStart) }.getOrNull()
+                ?: LocalDate.of(2026, 9, 1),
+            weekCount = if (s.weekCount > 0) s.weekCount else 2,
+            periodTitle = s.periodTitle,
+            lastFetchedAt = s.lastFetchedAt
+        )
+    }
+
+    fun saveSettings(s: SettingsState) {
+        db.settingsDao().save(
+            SettingsEntity(
+                myGroupId = s.myGroupId,
+                parityInvert = s.parityInvert,
+                language = s.language,
+                periodStart = s.periodStart.toString(),
+                weekCount = s.weekCount,
+                periodTitle = s.periodTitle,
+                lastFetchedAt = s.lastFetchedAt
+            )
+        )
+    }
+
+    fun groups(): List<GroupInfo> =
+        db.groupDao().getAll().map { GroupInfo(it.id, it.name, it.url) }
+
+    fun allForGroup(groupId: String): List<Lesson> =
+        db.lessonDao().getAllForGroup(groupId).map { it.toLesson() }
+
+    fun lessonsFor(groupId: String, date: LocalDate): List<Lesson> {
+        val s = settings()
+        return Schedule.lessonsForDate(allForGroup(groupId), groupId, date, s.periodStart, s.weekCount, s.parityInvert)
+    }
+
+    suspend fun ensureData(): Unit = withContext(Dispatchers.IO) {
+        if (db.groupDao().getAll().isEmpty()) refresh()
+    }
+
+    suspend fun refresh(url: String = GroupParser.DEFAULT_URL): Unit = withContext(Dispatchers.IO) {
+        val xml = fetch(url)
+        val parsed = GroupParser.parse(xml, url)
+        val s = settings()
+        val now = java.time.OffsetDateTime.now().toString()
+        db.runInTransaction {
+            for (g in parsed.groups) {
+                db.groupDao().upsert(GroupEntity(g.id, g.name, g.url))
+            }
+            val byGroup = parsed.lessons.groupBy { it.groupId }
+            for ((gid, list) in byGroup) {
+                db.lessonDao().clearForGroup(gid)
+                db.lessonDao().insertAll(list.map { it.toEntity() })
+            }
+            saveSettings(
+                s.copy(
+                    periodStart = parsed.periodStart,
+                    weekCount = parsed.weekCount,
+                    periodTitle = parsed.periodTitle,
+                    lastFetchedAt = now
+                )
+            )
+        }
+    }
+
+    private fun fetch(url: String): String {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) Zapara/1.0")
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 30_000
+            conn.connect()
+            if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+                throw IllegalStateException("HTTP ${conn.responseCode}")
+            }
+            return conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun Lesson.toEntity() = LessonEntity(
+        groupId = groupId, dayOfWeek = dayOfWeek, parity = parity, idx = index,
+        timeStart = timeStart, timeEnd = timeEnd, subjectRaw = subjectRaw,
+        subjectNormalized = subjectNormalized, teacherRaw = teacherRaw,
+        roomRaw = roomRaw, buildingRaw = buildingRaw, typeRaw = typeRaw,
+        classroomRaw = classroomRaw
+    )
+
+    private fun LessonEntity.toLesson() = Lesson(
+        groupId = groupId, dayOfWeek = dayOfWeek, parity = parity, index = idx,
+        timeStart = timeStart, timeEnd = timeEnd, subjectRaw = subjectRaw,
+        subjectNormalized = subjectNormalized, teacherRaw = teacherRaw,
+        roomRaw = roomRaw, buildingRaw = buildingRaw, typeRaw = typeRaw,
+        classroomRaw = classroomRaw
+    )
+}

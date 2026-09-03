@@ -3,12 +3,20 @@ package ru.bgtu_voenmeh.zapara
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.Text
+import androidx.lifecycle.viewmodel.compose.viewModel
+import ru.bgtu_voenmeh.zapara.ui.ScheduleViewModel
+import ru.bgtu_voenmeh.zapara.ui.ScheduleVmFactory
+import ru.bgtu_voenmeh.zapara.ui.ZaparaApp
+import ru.bgtu_voenmeh.zapara.ui.theme.ZaparaTheme
 
-// A1 stub — full schedule UI lands in Phase A2.
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { Text("ЗАПАРА") }
+        setContent {
+            ZaparaTheme {
+                val vm: ScheduleViewModel = viewModel(factory = ScheduleVmFactory(application))
+                ZaparaApp(vm)
+            }
+        }
     }
 }

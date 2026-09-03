@@ -45,6 +45,18 @@ data class FriendEntity(
     val memberNames: String = ""
 )
 
+@Entity(tableName = "settings")
+data class SettingsEntity(
+    @PrimaryKey val id: Int = 1,
+    val myGroupId: String? = null,
+    val parityInvert: Boolean = false,
+    val language: String = "ru",
+    val periodStart: String? = null, // ISO yyyy-MM-dd
+    val weekCount: Int = 2,
+    val periodTitle: String? = null,
+    val lastFetchedAt: String? = null
+)
+
 @Dao
 interface GroupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -87,8 +99,17 @@ interface FriendDao {
     fun delete(id: Long)
 }
 
+@Dao
+interface SettingsDao {
+    @Query("SELECT * FROM settings WHERE id = 1 LIMIT 1")
+    fun get(): SettingsEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun save(settings: SettingsEntity)
+}
+
 @Database(
-    entities = [GroupEntity::class, LessonEntity::class, FriendEntity::class],
+    entities = [GroupEntity::class, LessonEntity::class, FriendEntity::class, SettingsEntity::class],
     version = 1,
     exportSchema = false
 )
@@ -96,4 +117,5 @@ abstract class ZaparaDatabase : RoomDatabase() {
     abstract fun groupDao(): GroupDao
     abstract fun lessonDao(): LessonDao
     abstract fun friendDao(): FriendDao
+    abstract fun settingsDao(): SettingsDao
 }
