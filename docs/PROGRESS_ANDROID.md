@@ -36,7 +36,7 @@
 
 ### Raw numbers
 - Toolchain: JDK Temurin 17.0.20.1 (`C:\Android\jdk17`), Gradle 8.7 (`C:\Android\gradle-8.7` + wrapper), SDK `C:\Android\Sdk` (platform-tools 37.0.1, android-34, build-tools 34.0.0), AGP 8.5.2, Kotlin 2.0.21, Compose BOM 2024.06.00, Room 2.6.1 + KSP 2.0.21-1.0.25
-- Config: `ru.bgtu_voenmeh.zapara`, minSdk 26, target/compile 34, versionCode 1 / 1.0
+- Config: `ru.bgtu_voenmeh.zapara`, minSdk 26, target/compile 34, versionCode 2 / 1.1
 - Tests: ParityTest 4 / GroupParserTest 4 / LecturerParserTest 2 / IntersectionTest 4 / MapResolveTest 6 / ScheduleTest 5 = 25, failures 0, errors 0
 - Fixture asserts: 2 groups, 3313 = 7 lessons (odd 5 / even 2), `09:00`→`10:35`, `493;`→ГК / `563*;`→УЛК / `ВЦ 280;`→ВЦ / `дистанционно`, lecturer 1287 = 2 lessons + groups `3313/А863С`
 - Next-pair on fixture: subject from Wed 09-02 → Mon 09-07; teacher Волченкова → Wed 09-09

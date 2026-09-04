@@ -53,8 +53,8 @@ public class AutoUpdateService
         return null;
     }
 
-    public static string CurrentTagWindows => "windows-v1.0";
-    public static string CurrentTagAndroid => "android-v1.0";
+    public static string CurrentTagWindows => "windows-v1.1";
+    public static string CurrentTagAndroid => "android-v1.1";
 
     public static bool IsNewer(string latestTag, string currentTag)
     {
