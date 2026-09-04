@@ -608,21 +608,22 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     fun checkUpdateManual() {
         if (updateUi.checking || updateUi.downloading) return
         viewModelScope.launch {
-            updateUi = updateUi.copy(checking = true, error = null, upToDate = false, hasUpdate = false, tag = "", readyFile = null)
+            updateUi = updateUi.copy(checking = true, error = null, upToDate = false, hasUpdate = false, tag = "", readyFile = null, log = "Запрос к GitHub...")
             try {
                 val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
                 if (info == null) {
-                    updateUi = updateUi.copy(checking = false, error = "Не удалось проверить (API)")
+                    updateUi = updateUi.copy(checking = false, error = "Релизов нет", log = "API ок, релизов нет")
                 } else if (AutoUpdate.isNewer(info.tag)) {
                     updateUi = updateUi.copy(
                         checking = false, tag = info.tag,
-                        apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true
+                        apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true,
+                        log = "Найдено ${info.tag}"
                     )
                 } else {
-                    updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag)
+                    updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag, log = "Новее нет")
                 }
             } catch (e: Exception) {
-                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message}")
+                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message ?: e.javaClass.simpleName}", log = "Проверка не удалась")
             }
         }
     }
@@ -633,7 +634,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         if (tag.isEmpty() || url == null || updateUi.downloading) return
         dlJob?.cancel()
         dlJob = viewModelScope.launch {
-            updateUi = updateUi.copy(downloading = true, progress = -1f, error = null)
+            updateUi = updateUi.copy(downloading = true, progress = -1f, error = null, log = "Соединение...")
             dlCancel = false
             try {
                 val app = getApplication<Application>()
@@ -650,22 +651,28 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                                     lastEmit = now
                                     val p = if (total > 0) done.toFloat() / total else -1f
                                     main.post {
-                                        updateUi = updateUi.copy(progress = p, doneBytes = done, totalBytes = total)
+                                        updateUi = updateUi.copy(progress = p, doneBytes = done, totalBytes = total, log = "Качаю...")
                                     }
                                 }
                             },
                             isCancelled = { dlCancel }
                         )
                     }
+                    if (dlCancel) {
+                        updateUi = updateUi.copy(downloading = false, log = "Отменено")
+                        return@launch
+                    }
+                } else {
+                    updateUi = updateUi.copy(log = "Уже скачано")
                 }
-                updateUi = updateUi.copy(downloading = false, progress = 1f, readyFile = dest.absolutePath)
+                updateUi = updateUi.copy(downloading = false, progress = 1f, readyFile = dest.absolutePath, log = "Скачано, открываю установщик...")
                 fireInstaller(dest)
             } catch (_: CancellationException) {
-                updateUi = updateUi.copy(downloading = false)
+                updateUi = updateUi.copy(downloading = false, log = "Отменено")
             } catch (_: AutoUpdate.DownloadCancelled) {
-                updateUi = updateUi.copy(downloading = false)
+                updateUi = updateUi.copy(downloading = false, log = "Отменено")
             } catch (e: Exception) {
-                updateUi = updateUi.copy(downloading = false, error = "Скачивание: ${e.message}")
+                updateUi = updateUi.copy(downloading = false, error = "Скачивание: ${e.message ?: e.javaClass.simpleName}", log = "Скачивание не удалось")
             }
         }
     }
@@ -688,8 +695,27 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             firedFor = file.absolutePath
             val app = getApplication<Application>()
             app.startActivity(AutoUpdate.installIntent(app, file))
-        } catch (_: Exception) {
+            updateUi = updateUi.copy(log = "Установщик открыт")
+        } catch (e: Exception) {
+            updateUi = updateUi.copy(error = "Установщик: ${e.message ?: e.javaClass.simpleName}", log = "Установщик не открылся")
         }
+    }
+
+    /** Manual "Установить" button: same, but failures stay visible in the dialog. */
+    fun installReady() {
+        val path = updateUi.readyFile
+        if (path == null) {
+            updateUi = updateUi.copy(error = "Нет скачанного файла")
+            return
+        }
+        val file = File(path)
+        if (!file.exists()) {
+            updateUi = updateUi.copy(error = "Файл пропал, скачайте заново", readyFile = null)
+            firedFor = null
+            return
+        }
+        firedFor = null // allow explicit retry
+        fireInstaller(file)
     }
 
     // ---- Maps (A4) ----

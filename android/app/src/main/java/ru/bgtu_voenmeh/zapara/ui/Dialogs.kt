@@ -40,7 +40,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.io.File
 import ru.bgtu_voenmeh.zapara.data.AutoUpdate
 import ru.bgtu_voenmeh.zapara.data.Friend
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
@@ -172,11 +171,9 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                     u.readyFile != null -> {
                         Text("Готово: ${u.tag} — откройте установщик", color = Patina, fontSize = 11.sp)
                         Row {
-                            TextButton(onClick = {
-                                try {
-                                    ctx.startActivity(AutoUpdate.installIntent(ctx, File(u.readyFile)))
-                                } catch (_: Exception) {}
-                            }) { Text("Установить", color = Bronze, fontSize = 11.sp) }
+                            TextButton(onClick = { vm.installReady() }) {
+                                Text("Установить", color = Bronze, fontSize = 11.sp)
+                            }
                             if (u.htmlUrl != null) {
                                 val url = u.htmlUrl
                                 TextButton(onClick = {
@@ -212,6 +209,9 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                         }
                         if (u.error != null) Text(u.error, color = Cinnabar, fontSize = 11.sp)
                     }
+                }
+                if (u.log.isNotEmpty()) {
+                    Text(u.log, color = MarbleDim, fontSize = 9.sp)
                 }
                 // Re-check is always available (except mid-check/download) — no dead ends.
                 if (!u.checking && !u.downloading) {

@@ -33,5 +33,7 @@ data class UpdateUiState(
     val doneBytes: Long = 0L,
     val totalBytes: Long = -1L,
     val readyFile: String? = null,
-    val auto: Boolean = true
+    val auto: Boolean = true,
+    /** Last update step / failure detail, shown dimmed in Settings (no more silent stalls). */
+    val log: String = ""
 )

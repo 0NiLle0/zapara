@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AutoUpdate {
-    const val CURRENT_TAG = "android-v1.2.11"
+    const val CURRENT_TAG = "android-v1.2.12"
     private const val OWNER = "0NiLle0"
     private const val REPO = "zapara"
     private const val PREFS = "zapara"
@@ -28,7 +28,8 @@ object AutoUpdate {
             setRequestProperty("Accept", "application/vnd.github+json")
             connectTimeout = 8000; readTimeout = 8000
         }
-        if (conn.responseCode !in 200..299) return null
+        // Throw with the code (visible in UI) instead of silent null — null now means "no matching release".
+        if (conn.responseCode !in 200..299) throw IOException("GitHub API: HTTP ${conn.responseCode}")
         val json = conn.inputStream.bufferedReader().readText()
         val arr = JSONArray(json)
         for (i in 0 until arr.length()) {
