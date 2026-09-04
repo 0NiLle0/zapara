@@ -21,3 +21,12 @@ src/Vograph.Core/bin/
 src/Vograph.Core/obj/
 src/Vograph/bin/
 src/Vograph/obj/
+
+# Android build + local
+android/app/build/
+android/.gradle/
+android/local.properties
+.codegraph/
+/app/
+docs/a4_map.png
+
