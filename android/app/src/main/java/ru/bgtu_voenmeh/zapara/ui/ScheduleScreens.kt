@@ -297,24 +297,20 @@ private fun DayView(vm: ScheduleViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Header row — horizontalScroll on narrow screens to avoid vertical letter-by-letter wrap ("П/р/е/д/м/е/т")
+        // Header row mirrors LessonCard columns exactly (№ 22 / time 54 / subject weight / room 68)
+        // so nothing squeezes or scrolls on 360dp.
         Card(
             colors = CardDefaults.cardColors(containerColor = PanelAlt),
             border = BorderStroke(1.dp, BorderDim)
         ) {
             Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(7.dp, 4.dp),
+                Modifier.padding(7.dp, 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp), maxLines = 1)
-                Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), maxLines = 1)
-                Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(180.dp), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), maxLines = 1)
-                Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), maxLines = 1)
-                Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(88.dp), maxLines = 1)
-                Spacer(Modifier.width(44.dp))
+                Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp), maxLines = 1)
+                Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(54.dp), maxLines = 1)
+                Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(68.dp), maxLines = 1)
             }
         }
         lessons.forEachIndexed { order, l ->
