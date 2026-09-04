@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +62,13 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
     val u = vm.updateUi
     val ctx = LocalContext.current
     var groupSelectOpen by remember { mutableStateOf(false) }
+    // Fresh verdict on every open: a stored "up to date" may predate newer releases.
+    LaunchedEffect(Unit) {
+        val cur = vm.updateUi
+        if (!cur.checking && !cur.downloading && !cur.hasUpdate && cur.readyFile == null) {
+            vm.checkUpdateManual()
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Panel,
@@ -210,7 +218,8 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                         if (u.error != null) Text(u.error, color = Cinnabar, fontSize = 11.sp)
                     }
                 }
-                if (u.log.isNotEmpty()) {
+                // Progress log only while working or on error — not as a stale echo of the status.
+                if (u.log.isNotEmpty() && (u.checking || u.downloading || u.error != null)) {
                     Text(u.log, color = MarbleDim, fontSize = 9.sp)
                 }
                 // Re-check is always available (except mid-check/download) — no dead ends.
