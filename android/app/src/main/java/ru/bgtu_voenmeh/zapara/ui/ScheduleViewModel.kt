@@ -374,6 +374,9 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             notifTime1 = s.notifyTime1,
             notifTime2 = s.notifyTime2,
             dialog = state.dialog,
+            // Preserve arrow shift / return tab: render rebuilds the state from scratch.
+            dayOffset = state.dayOffset,
+            homeTab = state.homeTab,
             summary = summary, loading = false, error = null
         )
         android.util.Log.d(
@@ -656,19 +659,24 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             updateUi = updateUi.copy(checking = true, error = null, upToDate = false, hasUpdate = false, tag = "", readyFile = null, log = "Запрос к GitHub...")
             try {
                 val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
+                val at = java.time.LocalTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
                 if (info == null) {
-                    updateUi = updateUi.copy(checking = false, error = "Релизов нет", log = "API ок, релизов нет")
+                    updateUi = updateUi.copy(checking = false, error = "Релизов нет", log = "API ок, релизов нет", checkedAt = at)
                 } else if (AutoUpdate.isNewer(info.tag)) {
                     updateUi = updateUi.copy(
                         checking = false, tag = info.tag,
                         apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true,
-                        log = "Найдено ${info.tag}"
+                        log = "Найдено ${info.tag}", checkedAt = at
                     )
                 } else {
-                    updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag, log = "Новее нет")
+                    updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag, log = "Новее нет", checkedAt = at)
                 }
             } catch (e: Exception) {
-                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message ?: e.javaClass.simpleName}", log = "Проверка не удалась")
+                val at = try {
+                    java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                } catch (_: Exception) { "" }
+                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message ?: e.javaClass.simpleName}", log = "Проверка не удалась", checkedAt = at)
             }
         }
     }

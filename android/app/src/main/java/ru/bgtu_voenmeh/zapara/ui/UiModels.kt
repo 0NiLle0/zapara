@@ -35,5 +35,7 @@ data class UpdateUiState(
     val readyFile: String? = null,
     val auto: Boolean = true,
     /** Last update step / failure detail, shown dimmed in Settings (no more silent stalls). */
-    val log: String = ""
+    val log: String = "",
+    /** HH:MM of the last completed check (trust marker against cached API responses). */
+    val checkedAt: String = ""
 )

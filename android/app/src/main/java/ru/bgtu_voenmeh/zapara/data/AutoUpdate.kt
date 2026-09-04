@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AutoUpdate {
-    const val CURRENT_TAG = "android-v1.2.16"
+    const val CURRENT_TAG = "android-v1.2.17"
     private const val OWNER = "0NiLle0"
     private const val REPO = "zapara"
     private const val PREFS = "zapara"
@@ -21,11 +21,13 @@ object AutoUpdate {
 
     fun getLatest(channel: String = "android"): UpdateInfo? {
         val pfx = if (channel == "windows") "windows-" else "android-"
-        val url = URL("https://api.github.com/repos/$OWNER/$REPO/releases?per_page=20")
+        // Cache-buster: some networks/VPNs serve stale API responses without it.
+        val url = URL("https://api.github.com/repos/$OWNER/$REPO/releases?per_page=20&t=${System.currentTimeMillis()}")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             setRequestProperty("User-Agent", "Zapara-AutoUpdate/1.0")
             setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Cache-Control", "no-cache")
             connectTimeout = 8000; readTimeout = 8000
         }
         // Throw with the code (visible in UI) instead of silent null — null now means "no matching release".

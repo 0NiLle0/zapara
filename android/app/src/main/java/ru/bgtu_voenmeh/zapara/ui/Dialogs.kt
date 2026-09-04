@@ -212,11 +212,17 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                     else -> {
                         if (u.upToDate) {
                             Text(
-                                "У вас последняя" + if (u.tag.isNotEmpty()) " — ${u.tag}" else "",
+                                "У вас последняя" + if (u.tag.isNotEmpty()) " — ${u.tag}" else "" +
+                                    if (u.checkedAt.isNotEmpty()) " · ${u.checkedAt}" else "",
                                 color = MarbleDim, fontSize = 11.sp
                             )
                         }
-                        if (u.error != null) Text(u.error, color = Cinnabar, fontSize = 11.sp)
+                        if (u.error != null) {
+                            Text(
+                                u.error + if (u.checkedAt.isNotEmpty()) " · ${u.checkedAt}" else "",
+                                color = Cinnabar, fontSize = 11.sp
+                            )
+                        }
                     }
                 }
                 // Progress log only while working or on error — not as a stale echo of the status.
