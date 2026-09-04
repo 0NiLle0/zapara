@@ -195,6 +195,7 @@ fun TeacherDialog(
     onlyMy: Boolean,
     onOnlyMy: (Boolean) -> Unit,
     teachers: List<LecturerInfo>,
+    totalTeachers: Int = 0,
     selected: LecturerInfo?,
     onSelect: (LecturerInfo) -> Unit,
     onBack: () -> Unit,
@@ -227,7 +228,11 @@ fun TeacherDialog(
                         Checkbox(checked = onlyMy, onCheckedChange = onOnlyMy)
                         Text("Только мои", color = Marble, fontSize = 11.sp)
                         Spacer(Modifier.width(8.dp))
-                        Text("${teachers.size}", color = Bronze, fontSize = 10.sp)
+                        Text(
+                            if (totalTeachers > 0 && teachers.size < totalTeachers) "${teachers.size} из $totalTeachers"
+                            else "${teachers.size}",
+                            color = Bronze, fontSize = 10.sp
+                        )
                     }
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         if (teachers.isEmpty()) {
@@ -256,15 +261,15 @@ fun TeacherDialog(
                 val todayDow = remember { java.time.LocalDate.now().dayOfWeek.value }
                 Column(Modifier.fillMaxSize().padding(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onBack) { Text("← Назад", color = Bronze, fontSize = 11.sp) }
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            selected.name, color = Marble, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                        GhostBtn(text = "← Назад", onClick = onBack, fontSize = 13.sp)
+                        Spacer(Modifier.weight(1f))
                         TextButton(onClick = onDismiss) { Text("✕", color = MarbleDim, fontSize = 11.sp) }
                     }
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        selected.name, color = Marble, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                     Text(
                         if (isMy(selected)) "Ведет у вашей группы" else "Не ведет у вашей группы",
                         color = if (isMy(selected)) Patina else MarbleDim, fontSize = 9.sp

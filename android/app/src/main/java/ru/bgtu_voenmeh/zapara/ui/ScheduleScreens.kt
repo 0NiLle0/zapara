@@ -53,6 +53,7 @@ import ru.bgtu_voenmeh.zapara.ui.theme.Patina
 fun ZaparaApp(vm: ScheduleViewModel) {
     val s = vm.state
     var groupSelectOpen by remember { mutableStateOf(false) }
+    var mapSelectOpen by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -87,8 +88,8 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 TextButton(onClick = { vm.openTeachers() }) {
                     Text("Преподаватели", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
-                TextButton(onClick = { vm.toggleMap() }) {
-                    Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                TextButton(onClick = { mapSelectOpen = true }) {
+                    Text("Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
             }
         }
@@ -107,6 +108,16 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 items = s.groups.map { it.id to it.name },
                 onSelect = { vm.selectGroup(it.first); groupSelectOpen = false },
                 onDismiss = { groupSelectOpen = false }
+            )
+        }
+        // Standalone "Карта" button = building/floor chooser (per-lesson ◉ still jumps to its map).
+        if (mapSelectOpen) {
+            SearchSelectDialog(
+                title = "Карта корпуса",
+                searchLabel = "Поиск карты (ГК/УЛК)",
+                items = vm.allMapPairs(),
+                onSelect = { vm.selectMapByFile(it.first); mapSelectOpen = false },
+                onDismiss = { mapSelectOpen = false }
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -213,6 +224,7 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 onlyMy = s.teacherOnlyMy,
                 onOnlyMy = { vm.teacherOnlyMy(it) },
                 teachers = s.teacherList,
+                totalTeachers = s.teacherTotal,
                 selected = s.teacherSelected,
                 onSelect = { vm.selectTeacher(it) },
                 onBack = { vm.deselectTeacher() },

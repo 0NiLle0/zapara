@@ -88,6 +88,7 @@ data class ScheduleUiState(
     val teacherSelected: LecturerInfo? = null,
     val teacherDetails: List<LecturerLesson> = emptyList(),
     val teacherMyIds: Set<String> = emptySet(),
+    val teacherTotal: Int = 0,
     val summary: List<SummarySection> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null
@@ -628,6 +629,22 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** All 9 building maps as (fileName to title) pairs for the chooser dialog. */
+    fun allMapPairs(): List<Pair<String, String>> =
+        allMaps().map { it.fileName to it.title }
+
+    /** Show a map chosen by building (header "Карта" button). */
+    fun selectMapByFile(fileName: String) {
+        val m = allMaps().firstOrNull { it.fileName == fileName } ?: return
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) {
+                mapStore.mapFile(m.fileName)?.absolutePath
+            }
+            val list = if (state.mapList.isEmpty()) allMaps() else state.mapList
+            state = state.copy(mapVisible = true, mapList = list, currentMap = m, mapPath = path)
+        }
+    }
+
     fun showMapFor(lesson: Lesson) {
         val mi = MapResolve.resolve(lesson.classroomRaw) ?: return
         viewModelScope.launch {
@@ -738,9 +755,11 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 Triple(found, kept, ids)
             }
             val details = if (sel != null) withContext(Dispatchers.IO) { lecturerStore.lessonsFor(sel.id) } else emptyList()
+            val total = lecturerStore.lecturers().size
             state = state.copy(
                 teachersReady = true, teacherList = list,
-                teacherSelected = sel, teacherDetails = details, teacherMyIds = ids
+                teacherSelected = sel, teacherDetails = details, teacherMyIds = ids,
+                teacherTotal = total
             )
         }
     }

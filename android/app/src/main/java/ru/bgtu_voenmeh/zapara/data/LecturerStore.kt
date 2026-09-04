@@ -67,6 +67,7 @@ class LecturerStore(private val context: Context) {
                     lessonsFor(l.id).any { it.disciplineRaw.lowercase().contains(q) }
             }
         }
-        return list.sortedBy { it.name }.take(100).toList()
+        // No cap: LazyColumn renders lazily, all 718 lecturers are fine (was take(100)).
+        return list.sortedBy { it.name }.toList()
     }
 }
