@@ -159,6 +159,70 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             else -> DayView(vm)
         }
     }
+    // Dialogs live at screen level so they open from any tab (day/week/summary),
+    // not just DayView where they used to be scoped.
+    when (val d = s.dialog) {
+        is UiDialog.Rename -> {
+            val l = s.lessons.getOrNull(d.lessonIndex)
+            if (l != null) {
+                RenameDialog(
+                    lesson = l,
+                    initialName = d.initialName,
+                    initialNote = d.initialNote,
+                    initialGlobal = true,
+                    onSave = { name, note, global -> vm.saveRename(l, name, note, global) },
+                    onReset = { vm.resetRename(l) },
+                    onDismiss = { vm.closeDialog() }
+                )
+            }
+        }
+        is UiDialog.Homework -> {
+            val l = s.lessons.getOrNull(d.lessonIndex)
+            if (l != null) {
+                HomeworkDialog(
+                    lesson = l,
+                    duePreview = { n -> vm.hwDuePreview(l, n) },
+                    onSave = { text, n -> vm.saveHomework(l, text, n) },
+                    onDismiss = { vm.closeDialog() }
+                )
+            }
+        }
+        is UiDialog.Friends -> {
+            FriendsDialog(
+                friends = s.friends,
+                allGroups = s.groups,
+                alwaysShow = s.alwaysShow,
+                invertParity = s.invert,
+                onToggleAlwaysShow = { vm.toggleAlwaysShow(it) },
+                onToggleInvert = { vm.toggleInvert(it) },
+                onAdd = { vm.addFriend(it) },
+                onRemove = { vm.removeFriend(it) },
+                onSaveNames = { f, names -> vm.saveMemberNames(f, names) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.Settings -> {
+            SettingsDialog(vm, onDismiss = { vm.closeDialog() })
+        }
+        is UiDialog.Teachers -> {
+            TeacherDialog(
+                groupName = s.groupName,
+                myGroupName = s.groupName,
+                query = s.teacherQuery,
+                onQuery = { vm.teacherQuery(it) },
+                onlyMy = s.teacherOnlyMy,
+                onOnlyMy = { vm.teacherOnlyMy(it) },
+                teachers = s.teacherList,
+                selected = s.teacherSelected,
+                onSelect = { vm.selectTeacher(it) },
+                onBack = { vm.deselectTeacher() },
+                details = s.teacherDetails,
+                isMy = { vm.isMyTeacher(it) },
+                onDismiss = { vm.closeDialog() }
+            )
+        }
+        is UiDialog.None -> {}
+    }
     if (s.fullscreenMap) {
         FullscreenMap(
             current = s.currentMap,
@@ -236,65 +300,6 @@ private fun DayView(vm: ScheduleViewModel) {
                 onHwDelete = { hw -> vm.deleteHomework(hw.id) }
             )
         }
-    }
-    // Dialogs
-    when (val d = s.dialog) {
-        is UiDialog.Rename -> {
-            val l = s.lessons.getOrNull(d.lessonIndex) ?: return
-            RenameDialog(
-                lesson = l,
-                initialName = d.initialName,
-                initialNote = d.initialNote,
-                initialGlobal = true,
-                onSave = { name, note, global -> vm.saveRename(l, name, note, global) },
-                onReset = { vm.resetRename(l) },
-                onDismiss = { vm.closeDialog() }
-            )
-        }
-        is UiDialog.Homework -> {
-            val l = s.lessons.getOrNull(d.lessonIndex) ?: return
-            HomeworkDialog(
-                lesson = l,
-                duePreview = { n -> vm.hwDuePreview(l, n) },
-                onSave = { text, n -> vm.saveHomework(l, text, n) },
-                onDismiss = { vm.closeDialog() }
-            )
-        }
-        is UiDialog.Friends -> {
-            FriendsDialog(
-                friends = s.friends,
-                allGroups = s.groups,
-                alwaysShow = s.alwaysShow,
-                invertParity = s.invert,
-                onToggleAlwaysShow = { vm.toggleAlwaysShow(it) },
-                onToggleInvert = { vm.toggleInvert(it) },
-                onAdd = { vm.addFriend(it) },
-                onRemove = { vm.removeFriend(it) },
-                onSaveNames = { f, names -> vm.saveMemberNames(f, names) },
-                onDismiss = { vm.closeDialog() }
-            )
-        }
-        is UiDialog.Settings -> {
-            SettingsDialog(vm, onDismiss = { vm.closeDialog() })
-        }
-        is UiDialog.Teachers -> {
-            TeacherDialog(
-                groupName = s.groupName,
-                myGroupName = s.groupName,
-                query = s.teacherQuery,
-                onQuery = { vm.teacherQuery(it) },
-                onlyMy = s.teacherOnlyMy,
-                onOnlyMy = { vm.teacherOnlyMy(it) },
-                teachers = s.teacherList,
-                selected = s.teacherSelected,
-                onSelect = { vm.selectTeacher(it) },
-                onBack = { vm.deselectTeacher() },
-                details = s.teacherDetails,
-                isMy = { vm.isMyTeacher(it) },
-                onDismiss = { vm.closeDialog() }
-            )
-        }
-        is UiDialog.None -> {}
     }
 }
 
