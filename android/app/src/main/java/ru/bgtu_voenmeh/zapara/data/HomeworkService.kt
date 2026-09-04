@@ -76,6 +76,20 @@ class HomeworkService(
 
     fun computeDueDate(norm: String, from: LocalDate, n: Int): LocalDate? {
         val c = ctx() ?: return null
+        return dueDateIn(lessonsFor, c, norm, from, n)
+    }
+
+    /**
+     * Due computation over an explicit lessons provider — pass an in-memory list
+     * wrapper for main-thread-safe previews (Room forbids main-thread queries).
+     */
+    fun dueDateIn(
+        lessons: (groupId: String, dow: Int, parity: Int) -> List<Lesson>,
+        c: SchedCtx,
+        norm: String,
+        from: LocalDate,
+        n: Int
+    ): LocalDate? {
         var found = 0
         for (offset in 1..120) {
             val date = from.plusDays(offset.toLong())
@@ -83,7 +97,7 @@ class HomeworkService(
             val dow = date.dayOfWeek.value
             var code = Parity.weekCode(date, c.periodStart, c.weekCount)
             if (c.invert) code = if (code == 1) 2 else 1
-            val dayLessons = lessonsFor(c.groupId, dow, code)
+            val dayLessons = lessons(c.groupId, dow, code)
             for (l in dayLessons) {
                 if (l.subjectNormalized == norm) {
                     found++

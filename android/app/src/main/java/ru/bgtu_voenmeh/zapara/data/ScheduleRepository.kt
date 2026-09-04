@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import ru.bgtu_voenmeh.zapara.data.db.GroupEntity
 import ru.bgtu_voenmeh.zapara.data.db.LessonEntity
 import ru.bgtu_voenmeh.zapara.data.db.MIGRATION_1_2
+import ru.bgtu_voenmeh.zapara.data.db.MIGRATION_2_3
 import ru.bgtu_voenmeh.zapara.data.db.SettingsEntity
 import ru.bgtu_voenmeh.zapara.data.db.ZaparaDatabase
 import java.net.HttpURLConnection
@@ -32,7 +33,7 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
                         context.applicationContext,
                         ZaparaDatabase::class.java,
                         "zapara.db"
-                    ).addMigrations(MIGRATION_1_2).build()
+                    ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
                 ).also { instance = it }
             }
         }
@@ -47,7 +48,10 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
         val periodTitle: String? = null,
         val lastFetchedAt: String? = null,
         val intersectionStrictness: Int = 25,
-        val alwaysShowAllTrafficLights: Boolean = false
+        val alwaysShowAllTrafficLights: Boolean = false,
+        val notifyEnabled: Boolean = true,
+        val notifyTime1: String? = "20:00",
+        val notifyTime2: String? = "07:30"
     )
 
     fun settings(): SettingsState {
@@ -62,7 +66,10 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
             periodTitle = s.periodTitle,
             lastFetchedAt = s.lastFetchedAt,
             intersectionStrictness = s.intersectionStrictness,
-            alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights
+            alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights,
+            notifyEnabled = s.notifyEnabled,
+            notifyTime1 = s.notifyTime1,
+            notifyTime2 = s.notifyTime2
         )
     }
 
@@ -77,7 +84,10 @@ class ScheduleRepository private constructor(val db: ZaparaDatabase) {
                 periodTitle = s.periodTitle,
                 lastFetchedAt = s.lastFetchedAt,
                 intersectionStrictness = s.intersectionStrictness,
-                alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights
+                alwaysShowAllTrafficLights = s.alwaysShowAllTrafficLights,
+                notifyEnabled = s.notifyEnabled,
+                notifyTime1 = s.notifyTime1,
+                notifyTime2 = s.notifyTime2
             )
         )
     }

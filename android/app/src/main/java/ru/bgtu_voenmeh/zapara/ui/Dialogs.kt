@@ -46,6 +46,7 @@ import ru.bgtu_voenmeh.zapara.data.Friend
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
 import ru.bgtu_voenmeh.zapara.data.Homework
 import ru.bgtu_voenmeh.zapara.data.Lesson
+import ru.bgtu_voenmeh.zapara.data.Notifications
 import ru.bgtu_voenmeh.zapara.ui.theme.BorderDim
 import ru.bgtu_voenmeh.zapara.ui.theme.Bronze
 import ru.bgtu_voenmeh.zapara.ui.theme.Cinnabar
@@ -82,6 +83,61 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                     border = BorderStroke(1.dp, BorderDim),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Обновить расписание", fontSize = 11.sp) }
+                Spacer(Modifier.height(10.dp))
+                Text("УВЕДОМЛЕНИЯ", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = s.notifEnabled, onCheckedChange = { vm.setNotifEnabled(it) })
+                    Text("Уведомления о парах", color = Marble, fontSize = 11.sp)
+                }
+                if (!vm.notifPermissionGranted()) {
+                    Text("Нет разрешения на уведомления", color = Cinnabar, fontSize = 10.sp)
+                    TextButton(onClick = {
+                        try {
+                            ctx.startActivity(
+                                Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                            )
+                        } catch (_: Exception) {}
+                    }) { Text("Открыть настройки системы", color = Bronze, fontSize = 11.sp) }
+                } else if (!vm.canScheduleExact()) {
+                    Text("Без точных будильников сработает неточно", color = Cinnabar, fontSize = 10.sp)
+                    TextButton(onClick = {
+                        try {
+                            ctx.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                        } catch (_: Exception) {}
+                    }) { Text("Разрешить точные будильники", color = Bronze, fontSize = 11.sp) }
+                }
+                var nt1 by remember(s.notifTime1) { mutableStateOf(s.notifTime1 ?: "20:00") }
+                var nt2 by remember(s.notifTime2) { mutableStateOf(s.notifTime2 ?: "07:30") }
+                var ntErr by remember { mutableStateOf<String?>(null) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = nt1, onValueChange = { nt1 = it; ntErr = null },
+                        label = { Text("Время 1", fontSize = 9.sp) },
+                        singleLine = true, modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    OutlinedTextField(
+                        value = nt2, onValueChange = { nt2 = it; ntErr = null },
+                        label = { Text("Время 2", fontSize = 9.sp) },
+                        singleLine = true, modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    OutlinedButton(
+                        onClick = {
+                            if (!Notifications.isValidTime(nt1.trim()) || !Notifications.isValidTime(nt2.trim())) {
+                                ntErr = "Формат ЧЧ:ММ"
+                            } else {
+                                vm.saveNotifTimes(nt1.trim(), nt2.trim())
+                                ntErr = null
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
+                        border = BorderStroke(1.dp, BorderDim)
+                    ) { Text("OK", fontSize = 11.sp) }
+                }
+                if (ntErr != null) Text(ntErr!!, color = Cinnabar, fontSize = 10.sp)
+                Text("Время 1 — пары завтра, время 2 — пары сегодня.", color = MarbleDim, fontSize = 9.sp)
                 Spacer(Modifier.height(10.dp))
                 Text("ПРИЛОЖЕНИЕ", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 Text("Версия ${AutoUpdate.CURRENT_TAG}", color = MarbleDim, fontSize = 10.sp)
@@ -238,10 +294,12 @@ fun HomeworkDialog(
     lesson: Lesson,
     duePreview: (Int) -> String,
     onSave: (text: String, n: Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialText: String = "",
+    initialN: Int = 1
 ) {
-    var text by remember { mutableStateOf("") }
-    var nText by remember { mutableStateOf("1") }
+    var text by remember { mutableStateOf(initialText) }
+    var nText by remember { mutableStateOf(initialN.coerceIn(1, 10).toString()) }
     val n = nText.toIntOrNull()?.coerceIn(1, 10) ?: 1
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -516,7 +574,7 @@ fun SearchSelectDialog(
 }
 
 @Composable
-fun HomeworkRow(hw: Homework, onToggle: () -> Unit, onDelete: () -> Unit) {
+fun HomeworkRow(hw: Homework, onToggle: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val fg = when (hw.status) {
         "approaching", "done" -> MarbleDim
         "burning", "burning_urgent" -> Bronze
@@ -554,9 +612,16 @@ fun HomeworkRow(hw: Homework, onToggle: () -> Unit, onDelete: () -> Unit) {
                     androidx.compose.ui.text.style.TextDecoration.LineThrough else null
             )
             Text(
-                hw.due?.let { "%02d.%02d".format(it.dayOfMonth, it.monthValue) } ?: "—",
+                hw.due?.let {
+                    if (it.year != java.time.LocalDate.now().year) "%02d.%02d.%d".format(it.dayOfMonth, it.monthValue, it.year)
+                    else "%02d.%02d".format(it.dayOfMonth, it.monthValue)
+                } ?: "—",
                 color = MarbleDim, fontSize = 9.sp
             )
+            TextButton(
+                onClick = onEdit,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp, 8.dp)
+            ) { Text("✎", color = MarbleDim, fontSize = 14.sp) }
             TextButton(
                 onClick = onDelete,
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp, 8.dp)

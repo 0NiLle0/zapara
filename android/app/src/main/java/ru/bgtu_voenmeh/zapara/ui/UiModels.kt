@@ -14,6 +14,7 @@ sealed interface UiDialog {
     data object None : UiDialog
     data class Rename(val lessonIndex: Int, val initialName: String, val initialNote: String) : UiDialog
     data class Homework(val lessonIndex: Int) : UiDialog
+    data class HomeworkEdit(val lessonIndex: Int, val hwId: Long) : UiDialog
     data object Friends : UiDialog
     data object Teachers : UiDialog
     data object Settings : UiDialog

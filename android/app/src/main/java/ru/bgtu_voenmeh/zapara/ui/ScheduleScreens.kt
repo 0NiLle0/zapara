@@ -198,6 +198,20 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 )
             }
         }
+        is UiDialog.HomeworkEdit -> {
+            val l = s.lessons.getOrNull(d.lessonIndex)
+            val hw = s.hwMap.values.flatten().firstOrNull { it.id == d.hwId }
+            if (l != null && hw != null) {
+                HomeworkDialog(
+                    lesson = l,
+                    duePreview = { n -> vm.hwDuePreview(l, n) },
+                    onSave = { text, n -> vm.updateHomework(hw.id, text, n) },
+                    onDismiss = { vm.closeDialog() },
+                    initialText = hw.text,
+                    initialN = hw.n
+                )
+            }
+        }
         is UiDialog.Friends -> {
             FriendsDialog(
                 friends = s.friends,
@@ -225,6 +239,8 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 onOnlyMy = { vm.teacherOnlyMy(it) },
                 teachers = s.teacherList,
                 totalTeachers = s.teacherTotal,
+                weekParity = s.teacherWeekParity,
+                onWeekParity = { vm.teacherWeekParity(it) },
                 selected = s.teacherSelected,
                 onSelect = { vm.selectTeacher(it) },
                 onBack = { vm.deselectTeacher() },
@@ -309,6 +325,7 @@ private fun DayView(vm: ScheduleViewModel) {
                 onHomework = { vm.openDialog(UiDialog.Homework(order)) },
                 onMap = { vm.showMapFor(l) },
                 onHwToggle = { hw -> vm.toggleHomework(hw.id, hw.status != "done") },
+                onHwEdit = { hw -> vm.openDialog(UiDialog.HomeworkEdit(order, hw.id)) },
                 onHwDelete = { hw -> vm.deleteHomework(hw.id) }
             )
         }
@@ -384,6 +401,7 @@ private fun LessonCard(
     onHomework: () -> Unit,
     onMap: () -> Unit,
     onHwToggle: (Homework) -> Unit,
+    onHwEdit: (Homework) -> Unit,
     onHwDelete: (Homework) -> Unit
 ) {
     Card(
@@ -438,7 +456,7 @@ private fun LessonCard(
                 }
             }
             homeworks.forEach { hw ->
-                HomeworkRow(hw = hw, onToggle = { onHwToggle(hw) }, onDelete = { onHwDelete(hw) })
+                HomeworkRow(hw = hw, onToggle = { onHwToggle(hw) }, onEdit = { onHwEdit(hw) }, onDelete = { onHwDelete(hw) })
             }
         }
     }

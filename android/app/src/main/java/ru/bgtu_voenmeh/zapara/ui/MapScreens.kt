@@ -196,6 +196,8 @@ fun TeacherDialog(
     onOnlyMy: (Boolean) -> Unit,
     teachers: List<LecturerInfo>,
     totalTeachers: Int = 0,
+    weekParity: Int = 0,
+    onWeekParity: (Int) -> Unit = {},
     selected: LecturerInfo?,
     onSelect: (LecturerInfo) -> Unit,
     onBack: () -> Unit,
@@ -276,12 +278,20 @@ fun TeacherDialog(
                     )
                     Text("● зеленым — пары вашей группы", color = MarbleDim, fontSize = 9.sp)
                     Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (weekParity == 0) FerryBtn(text = "Обе", onClick = {}) else GhostBtn(text = "Обе", onClick = { onWeekParity(0) })
+                        if (weekParity == 1) FerryBtn(text = "Нечет", onClick = {}) else GhostBtn(text = "Нечет", onClick = { onWeekParity(1) })
+                        if (weekParity == 2) FerryBtn(text = "Чет", onClick = {}) else GhostBtn(text = "Чет", onClick = { onWeekParity(2) })
+                    }
+                    Spacer(Modifier.height(6.dp))
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         for (dow in 1..6) {
-                            val dayLessons = details.filter { it.dayOfWeek == dow }.sortedBy { it.timeStart }
+                            val dayLessons = details.filter {
+                                it.dayOfWeek == dow && (weekParity == 0 || it.parity == 0 || it.parity == weekParity)
+                            }.sortedBy { it.timeStart }
                             item(key = "dow$dow") {
                                 TeacherDayCard(
                                     dow = dow,

@@ -28,6 +28,7 @@ import ru.bgtu_voenmeh.zapara.data.Lesson
 import ru.bgtu_voenmeh.zapara.data.MapInfo
 import ru.bgtu_voenmeh.zapara.data.MapResolve
 import ru.bgtu_voenmeh.zapara.data.MapStore
+import ru.bgtu_voenmeh.zapara.data.Notifications
 import ru.bgtu_voenmeh.zapara.data.OverrideService
 import ru.bgtu_voenmeh.zapara.data.Parity
 import ru.bgtu_voenmeh.zapara.data.SchedCtx
@@ -73,6 +74,9 @@ data class ScheduleUiState(
     val friends: List<Friend> = emptyList(),
     val alwaysShow: Boolean = false,
     val invert: Boolean = false,
+    val notifEnabled: Boolean = true,
+    val notifTime1: String? = "20:00",
+    val notifTime2: String? = "07:30",
     val dialog: UiDialog = UiDialog.None,
     // Maps (A4)
     val mapVisible: Boolean = false,
@@ -89,6 +93,8 @@ data class ScheduleUiState(
     val teacherDetails: List<LecturerLesson> = emptyList(),
     val teacherMyIds: Set<String> = emptySet(),
     val teacherTotal: Int = 0,
+    /** Teacher week filter: 0 = both parities, 1 = odd, 2 = even. */
+    val teacherWeekParity: Int = 0,
     val summary: List<SummarySection> = emptyList(),
     val loading: Boolean = true,
     val error: String? = null
@@ -118,6 +124,8 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     private var dlJob: Job? = null
     @Volatile private var dlCancel = false
     private var firedFor: String? = null
+    /** In-memory schedule context for main-thread-safe due previews (no DB access). */
+    private var schedCtx: SchedCtx? = null
 
     init {
         viewModelScope.launch {
@@ -231,6 +239,12 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         android.util.Log.d("ZaparaApp", "render start tab=$tab gid=$gid groups=${groups.size}")
         val s = withContext(Dispatchers.IO) { repo.settings() }
         val id = gid.ifEmpty { groups.firstOrNull()?.id.orEmpty() }
+        // Persist the resolved group: fresh installs render a default group without saving it,
+        // leaving settings.myGroupId null — homework due dates computed from an empty group (always null).
+        if (id.isNotEmpty() && s.myGroupId != id) {
+            withContext(Dispatchers.IO) { repo.saveSettings(s.copy(myGroupId = id)) }
+        }
+        schedCtx = SchedCtx(id, s.periodStart, s.weekCount, s.parityInvert)
         val name = groups.firstOrNull { it.id == id }?.name ?: "—"
         val date = when (tab) {
             Tab.Yesterday -> LocalDate.now().minusDays(1)
@@ -299,6 +313,9 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             friends = withContext(Dispatchers.IO) { repoFriends() },
             alwaysShow = s.alwaysShowAllTrafficLights,
             invert = s.parityInvert,
+            notifEnabled = s.notifyEnabled,
+            notifTime1 = s.notifyTime1,
+            notifTime2 = s.notifyTime2,
             dialog = state.dialog,
             summary = summary, loading = false, error = null
         )
@@ -409,9 +426,15 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun hwDuePreview(lesson: Lesson, n: Int): String {
+        // In-memory only (main-thread safe): Room forbids main-thread queries.
         return try {
-            val st = repo.settings()
-            val due = homework.computeDueDate(
+            val c = schedCtx ?: return "Срок: —"
+            val mem = state.allLessons
+            val due = homework.dueDateIn(
+                { gid, dow, parity ->
+                    mem.filter { it.groupId == gid && it.dayOfWeek == dow && (it.parity == parity || it.parity == 0) }
+                },
+                c,
                 Parity.normalizeSubject(lesson.subjectRaw), LocalDate.now(), n.coerceIn(1, 10)
             )
             if (due == null) "Срок: — (нет занятий)"
@@ -426,6 +449,14 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             withContext(Dispatchers.IO) {
                 homework.addHomework(lesson.subjectRaw, text, n, LocalDate.now())
             }
+            closeDialog()
+            render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
+        }
+    }
+
+    fun updateHomework(id: Long, text: String, n: Int) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { homework.updateHomework(id, text, n) }
             closeDialog()
             render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
         }
@@ -504,6 +535,42 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             }
             render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId)
         }
+    }
+
+    fun setNotifEnabled(value: Boolean) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val st = repo.settings()
+                repo.saveSettings(st.copy(notifyEnabled = value))
+                val app = getApplication<Application>()
+                if (value) Notifications.schedule(app) else Notifications.cancel(app)
+            }
+            state = state.copy(notifEnabled = value)
+        }
+    }
+
+    fun saveNotifTimes(t1: String, t2: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val st = repo.settings()
+                repo.saveSettings(st.copy(notifyTime1 = t1.ifBlank { null }, notifyTime2 = t2.ifBlank { null }))
+                Notifications.schedule(getApplication())
+            }
+            state = state.copy(notifTime1 = t1.ifBlank { null }, notifTime2 = t2.ifBlank { null })
+        }
+    }
+
+    fun notifPermissionGranted(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < 33) return true
+        return androidx.core.content.ContextCompat.checkSelfPermission(
+            getApplication(),
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    fun canScheduleExact(): Boolean {
+        val am = getApplication<Application>().getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+        return android.os.Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
     }
 
     // ---- Self-update (GitHub releases) ----
@@ -724,6 +791,10 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deselectTeacher() {
         state = state.copy(teacherSelected = null, teacherDetails = emptyList())
+    }
+
+    fun teacherWeekParity(parity: Int) {
+        state = state.copy(teacherWeekParity = parity.coerceIn(0, 2))
     }
 
     fun isMyTeacher(t: LecturerInfo): Boolean {

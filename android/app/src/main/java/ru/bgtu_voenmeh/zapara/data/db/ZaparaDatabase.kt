@@ -57,7 +57,10 @@ data class SettingsEntity(
     val periodTitle: String? = null,
     val lastFetchedAt: String? = null,
     val intersectionStrictness: Int = 25,
-    val alwaysShowAllTrafficLights: Boolean = false
+    val alwaysShowAllTrafficLights: Boolean = false,
+    val notifyEnabled: Boolean = true,
+    val notifyTime1: String? = "20:00", // evening: tomorrow's lessons
+    val notifyTime2: String? = "07:30" // morning: today's lessons
 )
 
 @Entity(tableName = "overrides")
@@ -186,9 +189,17 @@ val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE settings ADD COLUMN notifyEnabled INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE settings ADD COLUMN notifyTime1 TEXT DEFAULT '20:00'")
+        db.execSQL("ALTER TABLE settings ADD COLUMN notifyTime2 TEXT DEFAULT '07:30'")
+    }
+}
+
 @Database(
     entities = [GroupEntity::class, LessonEntity::class, FriendEntity::class, SettingsEntity::class, OverrideEntity::class, HomeworkEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ZaparaDatabase : RoomDatabase() {
