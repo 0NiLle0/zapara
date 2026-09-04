@@ -85,6 +85,9 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 TextButton(onClick = { mapSelectOpen = true }) {
                     Text("Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
+                TextButton(onClick = { vm.selectTab(Tab.Today) }) {
+                    Text("Сегодня", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -115,20 +118,28 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             )
         }
         Spacer(Modifier.height(8.dp))
-        // Compact day switcher: arrows flip Yesterday/Today/Tomorrow, center tap = Today.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            GhostBtn(text = "←", onClick = { vm.stepDay(-1) })
+        // Compact day switcher. On Week/Summary only the return button stays (remembers the date).
+        if (s.tab == Tab.Week || s.tab == Tab.Summary) {
             FerryBtn(
-                text = dayTabName(s.tab),
-                onClick = { vm.selectTab(Tab.Today) },
-                modifier = Modifier.weight(1f)
+                text = vm.dayCenterLabel(),
+                onClick = { vm.selectTab(s.homeTab) },
+                modifier = Modifier.fillMaxWidth()
             )
-            GhostBtn(text = "→", onClick = { vm.stepDay(1) })
-            if (s.tab != Tab.Week) GhostBtn(text = "Неделя", onClick = { vm.selectTab(Tab.Week) })
-            if (s.tab != Tab.Summary) GhostBtn(text = "Сводка", onClick = { vm.selectTab(Tab.Summary) })
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                GhostBtn(text = "←", onClick = { vm.stepDay(-1) }, modifier = Modifier.width(46.dp))
+                FerryBtn(
+                    text = vm.dayCenterLabel(),
+                    onClick = { vm.selectTab(Tab.Today) },
+                    modifier = Modifier.weight(1f)
+                )
+                GhostBtn(text = "→", onClick = { vm.stepDay(1) }, modifier = Modifier.width(46.dp))
+                GhostBtn(text = "Неделя", onClick = { vm.selectTab(Tab.Week) })
+                GhostBtn(text = "Сводка", onClick = { vm.selectTab(Tab.Summary) })
+            }
         }
         Spacer(Modifier.height(8.dp))
         // Date + parity + week
@@ -267,13 +278,7 @@ fun ZaparaApp(vm: ScheduleViewModel) {
     }
 }
 
-private fun dayTabName(tab: Tab): String = when (tab) {
-    Tab.Yesterday -> "Вчера"
-    Tab.Today -> "Сегодня"
-    Tab.Tomorrow -> "Завтра"
-    Tab.Week -> "Неделя"
-    Tab.Summary -> "Сводка"
-}
+
 
 @Composable
 private fun DayView(vm: ScheduleViewModel) {

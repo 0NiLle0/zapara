@@ -52,6 +52,10 @@ data class SummarySection(
 
 data class ScheduleUiState(
     val tab: Tab = Tab.Tomorrow,
+    /** Extra day shift from arrows (unbounded); effective date = tab base + offset. */
+    val dayOffset: Int = 0,
+    /** Last day tab (for return from Week/Summary). */
+    val homeTab: Tab = Tab.Today,
     val weekParity: Int = 1, // 1 odd, 2 even for week view
     val groups: List<GroupInfo> = emptyList(),
     val groupId: String = "",
@@ -175,19 +179,56 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectTab(tab: Tab) {
         if (state.loading) return
+        // Direct tab tap resets the arrow shift; day tabs are remembered for return.
+        state = state.copy(
+            dayOffset = 0,
+            homeTab = if (tab == Tab.Week || tab == Tab.Summary) state.homeTab else tab
+        )
         viewModelScope.launch { render(tab, state.groupId, state.weekParity, state.groups, state.groupId) }
     }
 
-    /** Arrow-step through Yesterday/Today/Tomorrow (clamped); from Week/Summary jumps to an edge day. */
+    /** Arrow-stepping is unbounded: shift accumulates, the center button shows the full date. */
     fun stepDay(delta: Int) {
         if (state.loading) return
         val order = listOf(Tab.Yesterday, Tab.Today, Tab.Tomorrow)
-        val next = if (state.tab in order) {
-            order[(order.indexOf(state.tab) + delta).coerceIn(order.indices)]
-        } else {
-            if (delta < 0) Tab.Yesterday else Tab.Tomorrow
+        if (state.tab !in order) {
+            val target = if (delta < 0) Tab.Yesterday else Tab.Tomorrow
+            selectTab(target)
+            return
         }
-        selectTab(next)
+        state = state.copy(dayOffset = state.dayOffset + delta)
+        viewModelScope.launch { render(state.tab, state.groupId, state.weekParity, state.groups, state.groupId) }
+    }
+
+    /** Center button label: full day names near today, full date beyond. */
+    fun dayCenterLabel(): String {
+        val t = state.tab
+        if (t == Tab.Week || t == Tab.Summary) return dayTabName(state.homeTab)
+        val base = when (t) {
+            Tab.Yesterday -> -1
+            Tab.Tomorrow -> 1
+            else -> 0
+        }
+        return when (val total = base + state.dayOffset) {
+            -1 -> "Вчера"
+            0 -> "Сегодня"
+            1 -> "Завтра"
+            else -> {
+                val d = LocalDate.now().plusDays(total.toLong())
+                "%02d.%02d · %s".format(
+                    d.dayOfMonth, d.monthValue,
+                    d.dayOfWeek.getDisplayName(TextStyle.SHORT, RU)
+                )
+            }
+        }
+    }
+
+    private fun dayTabName(tab: Tab): String = when (tab) {
+        Tab.Yesterday -> "Вчера"
+        Tab.Today -> "Сегодня"
+        Tab.Tomorrow -> "Завтра"
+        Tab.Week -> "Неделя"
+        Tab.Summary -> "Сводка"
     }
 
     fun selectWeekParity(parity: Int) {
@@ -195,6 +236,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectGroup(groupId: String) {
+        state = state.copy(dayOffset = 0, homeTab = Tab.Today)
         viewModelScope.launch {
             val s = withContext(Dispatchers.IO) { repo.settings() }
             withContext(Dispatchers.IO) { repo.saveSettings(s.copy(myGroupId = groupId)) }
@@ -258,12 +300,15 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         }
         schedCtx = SchedCtx(id, s.periodStart, s.weekCount, s.parityInvert)
         val name = groups.firstOrNull { it.id == id }?.name ?: "—"
-        val date = when (tab) {
+        val dayBase = when (tab) {
             Tab.Yesterday -> LocalDate.now().minusDays(1)
             Tab.Today -> LocalDate.now()
             Tab.Tomorrow -> LocalDate.now().plusDays(1)
             else -> LocalDate.now()
         }
+        // Arrow shift applies to day tabs only (Week/Summary ignore it).
+        val date = if (tab == Tab.Week || tab == Tab.Summary) dayBase
+        else dayBase.plusDays(state.dayOffset.toLong())
         val odd = Parity.isOddWeek(date, s.periodStart, s.weekCount, s.parityInvert)
         val dateText = "%02d.%02d.%d · %s".format(
             date.dayOfMonth, date.monthValue, date.year,
