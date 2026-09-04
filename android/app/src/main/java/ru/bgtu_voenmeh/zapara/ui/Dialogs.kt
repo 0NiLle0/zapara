@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.File
@@ -374,6 +375,46 @@ fun FriendsDialog(
     )
 }
 
+// Charon button styles: every labeled button gets a visible frame.
+// Ghost = secondary (BorderDim frame), Ferry = primary (PanelAlt fill + Bronze frame).
+@Composable
+fun GhostBtn(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    fontSize: TextUnit = 11.sp
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble, disabledContentColor = MarbleDim),
+        border = BorderStroke(1.dp, BorderDim)
+    ) { Text(text, fontSize = fontSize, maxLines = 1) }
+}
+
+@Composable
+fun FerryBtn(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    fontSize: TextUnit = 11.sp
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = PanelAlt,
+            contentColor = Bronze,
+            disabledContentColor = MarbleDim
+        ),
+        border = BorderStroke(1.dp, Bronze)
+    ) { Text(text, fontSize = fontSize, maxLines = 1) }
+}
+
 @Composable
 fun SelectField(
     value: String?,
@@ -516,7 +557,10 @@ fun HomeworkRow(hw: Homework, onToggle: () -> Unit, onDelete: () -> Unit) {
                 hw.due?.let { "%02d.%02d".format(it.dayOfMonth, it.monthValue) } ?: "—",
                 color = MarbleDim, fontSize = 9.sp
             )
-            TextButton(onClick = onDelete) { Text("✕", color = MarbleDim, fontSize = 10.sp) }
+            TextButton(
+                onClick = onDelete,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp, 8.dp)
+            ) { Text("✕", color = MarbleDim, fontSize = 15.sp) }
         }
     }
 }

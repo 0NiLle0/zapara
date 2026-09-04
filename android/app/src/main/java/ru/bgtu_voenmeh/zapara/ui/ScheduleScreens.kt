@@ -431,10 +431,10 @@ private fun LessonCard(
                 Box(modifier = Modifier.weight(1f)) {
                     TrafficDots(dots)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    TextButton(onClick = onRename, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text("✎", color = Marble, fontSize = 11.sp) }
-                    TextButton(onClick = onHomework, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text("+", color = Marble, fontSize = 11.sp) }
-                    TextButton(onClick = onMap, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text(String(Character.toChars(0x25C9)), color = Marble, fontSize = 11.sp) }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    GhostBtn(text = "✎", onClick = onRename, fontSize = 15.sp)
+                    GhostBtn(text = "+", onClick = onHomework, fontSize = 15.sp)
+                    GhostBtn(text = String(Character.toChars(0x25C9)), onClick = onMap, fontSize = 15.sp)
                 }
             }
             homeworks.forEach { hw ->
