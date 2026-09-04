@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,23 +61,35 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             .fillMaxSize()
             .padding(10.dp)
     ) {
-        // Header
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("ЗАПАРА", color = Marble, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(12.dp))
-            Text(
-                "Группа ${s.groupName} · ${if (s.parityText == "НЕЧЕТНАЯ") "нечетная" else "четная"} неделя",
-                color = MarbleDim, fontSize = 10.sp, modifier = Modifier.weight(1f)
-            )
-            RefreshButton(vm)
-            TextButton(onClick = { vm.openDialog(UiDialog.Friends) }) {
-                Text("Друзья", color = Bronze, fontSize = 11.sp)
+        // Header — 2 rows to avoid squeeze on 360dp (was wrapping "нечетн/ая/неделя" per letter)
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("ЗАПАРА", color = Marble, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Группа ${s.groupName.ifEmpty { "—" }} · ${if (s.parityText == "НЕЧЕТНАЯ") "нечетная" else "четная"} неделя",
+                    color = MarbleDim, fontSize = 10.sp, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
             }
-            TextButton(onClick = { vm.openTeachers() }) {
-                Text("Преподаватели", color = Bronze, fontSize = 11.sp)
-            }
-            TextButton(onClick = { vm.toggleMap() }) {
-                Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RefreshButton(vm)
+                TextButton(onClick = { vm.openDialog(UiDialog.Friends) }) {
+                    Text("Друзья", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                }
+                TextButton(onClick = { vm.openTeachers() }) {
+                    Text("Преподаватели", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                }
+                TextButton(onClick = { vm.toggleMap() }) {
+                    Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -176,7 +189,7 @@ private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor()
-                .fillMaxWidth(0.6f)
+                .fillMaxWidth()
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -207,19 +220,24 @@ private fun DayView(vm: ScheduleViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Header row
+        // Header row — horizontalScroll on narrow screens to avoid vertical letter-by-letter wrap ("П/р/е/д/м/е/т")
         Card(
             colors = CardDefaults.cardColors(containerColor = PanelAlt),
             border = BorderStroke(1.dp, BorderDim)
         ) {
-            Row(Modifier.padding(7.dp, 4.dp)) {
-                Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp))
-                Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp))
-                Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
-                Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp))
-                Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(96.dp))
-                Spacer(Modifier.width(56.dp))
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(7.dp, 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("№", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(28.dp), maxLines = 1)
+                Text("Время", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), maxLines = 1)
+                Text("Предмет", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(180.dp), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("Ауд.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), maxLines = 1)
+                Text("След.", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), maxLines = 1)
+                Text("●", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(88.dp), maxLines = 1)
+                Spacer(Modifier.width(44.dp))
             }
         }
         lessons.forEachIndexed { order, l ->
@@ -295,11 +313,17 @@ private fun DayView(vm: ScheduleViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TrafficDots(dots: List<TrafficDot>) {
-    Column {
+    // Wrap to next line on narrow screens — was fixed 80dp width causing overflow
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         if (dots.isEmpty()) {
-            OffDot()
+            Row(verticalAlignment = Alignment.CenterVertically) { OffDot(); Spacer(Modifier.width(4.dp)); Text("— нет рядом", color = MarbleDim, fontSize = 9.sp) }
         } else {
             dots.take(5).forEach { d ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
@@ -314,18 +338,17 @@ private fun TrafficDots(dots: List<TrafficDot>) {
                     }
                     Box(
                         modifier = Modifier
-                            .width(12.dp)
-                            .height(12.dp)
-                            .shadow(6.dp, CircleShape, true, glow, glow)
+                            .width(10.dp)
+                            .height(10.dp)
+                            .shadow(4.dp, CircleShape, true, glow, glow)
                             .background(fill, CircleShape)
                     )
                     }
                     Spacer(Modifier.width(4.dp))
-                    val label = if (d.memberNames.isBlank()) "- ${d.friendGroup}"
-                    else "- ${d.friendGroup} (${d.memberNames})"
+                    val label = if (d.memberNames.isBlank()) d.friendGroup
+                    else "${d.friendGroup} (${d.memberNames})"
                     Text(
-                        label, color = MarbleDim, fontSize = 9.sp, maxLines = 1,
-                        modifier = Modifier.width(80.dp)
+                        label, color = MarbleDim, fontSize = 9.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }
@@ -366,13 +389,14 @@ private fun LessonCard(
         border = BorderStroke(1.dp, BorderDim)
     ) {
         Column(Modifier.padding(7.dp)) {
-            Row {
-                Text(number.toString(), color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(28.dp))
+            // Top row — subject + time/classroom inline, wraps only subject, other cols fixed
+            Row(verticalAlignment = Alignment.Top) {
+                Text(number.toString(), color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(22.dp))
                 Text(
                     if (lesson.timeStart.isEmpty()) "—" else "${lesson.timeStart}\n${lesson.timeEnd}",
-                    color = Marble, fontSize = 11.sp, modifier = Modifier.width(64.dp)
+                    color = Marble, fontSize = 11.sp, lineHeight = 12.sp, modifier = Modifier.width(54.dp)
                 )
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 6.dp)) {
                     val subj = buildString {
                         if (lesson.typeRaw.isNotEmpty()) append("[${lesson.typeRaw}] ")
                         append(displayName.ifEmpty { "—" })
@@ -382,26 +406,33 @@ private fun LessonCard(
                         fontWeight = if (displayName != lesson.subjectRaw) FontWeight.SemiBold else FontWeight.Normal
                     )
                     if (displayName != lesson.subjectRaw) {
-                        Text(lesson.subjectRaw, color = MarbleDim, fontSize = 9.sp)
+                        Text(lesson.subjectRaw, color = MarbleDim, fontSize = 9.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     if (note.isNotEmpty()) {
-                        Text(note, color = Bronze, fontSize = 9.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                        Text(note, color = Bronze, fontSize = 9.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     Text(
                         lesson.teacherRaw.ifEmpty { "—" },
-                        color = MarbleDim, fontSize = 10.sp
+                        color = MarbleDim, fontSize = 10.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-                Text(
-                    lesson.classroomRaw.ifEmpty { "—" },
-                    color = MarbleDim, fontSize = 11.sp, modifier = Modifier.width(56.dp)
-                )
-                Text(next, color = Patina, fontSize = 10.sp, modifier = Modifier.width(56.dp))
-                TrafficDots(dots)
-                Column {
-                    TextButton(onClick = onRename) { Text("✎", color = Marble, fontSize = 10.sp) }
-                    TextButton(onClick = onHomework) { Text("+", color = Marble, fontSize = 10.sp) }
-                    TextButton(onClick = onMap) { Text(String(Character.toChars(0x25C9)), color = Marble, fontSize = 10.sp) }
+                Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(68.dp)) {
+                    Text(
+                        lesson.classroomRaw.ifEmpty { "—" },
+                        color = MarbleDim, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(next, color = Patina, fontSize = 9.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.weight(1f)) {
+                    TrafficDots(dots)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    TextButton(onClick = onRename, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text("✎", color = Marble, fontSize = 11.sp) }
+                    TextButton(onClick = onHomework, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text("+", color = Marble, fontSize = 11.sp) }
+                    TextButton(onClick = onMap, contentPadding = androidx.compose.foundation.layout.PaddingValues(6.dp, 2.dp)) { Text(String(Character.toChars(0x25C9)), color = Marble, fontSize = 11.sp) }
                 }
             }
             homeworks.forEach { hw ->
