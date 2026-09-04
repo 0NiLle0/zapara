@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -453,14 +454,17 @@ fun GhostBtn(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    fontSize: TextUnit = 11.sp
+    fontSize: TextUnit = 11.sp,
+    compact: Boolean = false
 ) {
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble, disabledContentColor = MarbleDim),
-        border = BorderStroke(1.5.dp, BorderDim)
+        border = BorderStroke(1.5.dp, BorderDim),
+        contentPadding = if (compact) PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        else PaddingValues(horizontal = 16.dp, vertical = 10.dp)
     ) { Text(text, fontSize = fontSize, maxLines = 1) }
 }
 
@@ -470,7 +474,8 @@ fun FerryBtn(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    fontSize: TextUnit = 11.sp
+    fontSize: TextUnit = 11.sp,
+    compact: Boolean = false
 ) {
     OutlinedButton(
         onClick = onClick,
@@ -481,7 +486,9 @@ fun FerryBtn(
             contentColor = Bronze,
             disabledContentColor = MarbleDim
         ),
-        border = BorderStroke(1.5.dp, Bronze)
+        border = BorderStroke(1.5.dp, Bronze),
+        contentPadding = if (compact) PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        else PaddingValues(horizontal = 16.dp, vertical = 10.dp)
     ) { Text(text, fontSize = fontSize, maxLines = 1) }
 }
 

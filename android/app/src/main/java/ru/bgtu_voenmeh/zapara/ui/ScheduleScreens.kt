@@ -130,15 +130,16 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                GhostBtn(text = "←", onClick = { vm.stepDay(-1) }, modifier = Modifier.width(46.dp))
-                FerryBtn(
-                    text = vm.dayCenterLabel(),
-                    onClick = { vm.selectTab(Tab.Today) },
-                    modifier = Modifier.weight(1f)
-                )
-                GhostBtn(text = "→", onClick = { vm.stepDay(1) }, modifier = Modifier.width(46.dp))
-                GhostBtn(text = "Неделя", onClick = { vm.selectTab(Tab.Week) })
-                GhostBtn(text = "Сводка", onClick = { vm.selectTab(Tab.Summary) })
+            GhostBtn(text = "←", onClick = { vm.stepDay(-1) }, compact = true)
+            FerryBtn(
+                text = vm.dayCenterLabel(),
+                onClick = { vm.selectTab(Tab.Today) },
+                modifier = Modifier.weight(1f),
+                compact = true
+            )
+            GhostBtn(text = "→", onClick = { vm.stepDay(1) }, compact = true)
+            GhostBtn(text = "Неделя", onClick = { vm.selectTab(Tab.Week) }, compact = true)
+            GhostBtn(text = "Сводка", onClick = { vm.selectTab(Tab.Summary) }, compact = true)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -157,8 +158,8 @@ fun ZaparaApp(vm: ScheduleViewModel) {
         if (s.tab == Tab.Week) {
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (s.weekParity == 1) FerryBtn(text = "Нечетная", onClick = {}) else GhostBtn(text = "Нечетная", onClick = { vm.selectWeekParity(1) })
-                if (s.weekParity == 2) FerryBtn(text = "Четная", onClick = {}) else GhostBtn(text = "Четная", onClick = { vm.selectWeekParity(2) })
+                if (s.weekParity == 1) FerryBtn(text = "Нечетная", onClick = {}, compact = true) else GhostBtn(text = "Нечетная", onClick = { vm.selectWeekParity(1) }, compact = true)
+                if (s.weekParity == 2) FerryBtn(text = "Четная", onClick = {}, compact = true) else GhostBtn(text = "Четная", onClick = { vm.selectWeekParity(2) }, compact = true)
             }
         }
         Spacer(Modifier.height(8.dp))

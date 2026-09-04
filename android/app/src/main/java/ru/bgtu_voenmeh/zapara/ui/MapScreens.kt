@@ -295,9 +295,9 @@ fun TeacherDialog(
                     Text("● зеленым — пары вашей группы", color = MarbleDim, fontSize = 9.sp)
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (weekParity == 0) FerryBtn(text = "Обе", onClick = {}) else GhostBtn(text = "Обе", onClick = { onWeekParity(0) })
-                        if (weekParity == 1) FerryBtn(text = "Нечет", onClick = {}) else GhostBtn(text = "Нечет", onClick = { onWeekParity(1) })
-                        if (weekParity == 2) FerryBtn(text = "Чет", onClick = {}) else GhostBtn(text = "Чет", onClick = { onWeekParity(2) })
+                        if (weekParity == 0) FerryBtn(text = "Обе", onClick = {}, compact = true) else GhostBtn(text = "Обе", onClick = { onWeekParity(0) }, compact = true)
+                        if (weekParity == 1) FerryBtn(text = "Нечет", onClick = {}, compact = true) else GhostBtn(text = "Нечет", onClick = { onWeekParity(1) }, compact = true)
+                        if (weekParity == 2) FerryBtn(text = "Чет", onClick = {}, compact = true) else GhostBtn(text = "Чет", onClick = { onWeekParity(2) }, compact = true)
                     }
                     Spacer(Modifier.height(6.dp))
                     LazyColumn(
