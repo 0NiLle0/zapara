@@ -149,7 +149,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
                     ?: return@launch
                 if (!AutoUpdate.isNewer(info.tag)) return@launch
-                updateUi = updateUi.copy(tag = info.tag, apkUrl = info.apkUrl, htmlUrl = info.htmlUrl)
+                updateUi = updateUi.copy(tag = info.tag, apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true)
                 if (info.apkUrl != null) startUpdateDownload()
             } catch (_: Exception) {
             }
@@ -517,7 +517,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     fun checkUpdateManual() {
         if (updateUi.checking || updateUi.downloading) return
         viewModelScope.launch {
-            updateUi = updateUi.copy(checking = true, error = null, upToDate = false, tag = "", readyFile = null)
+            updateUi = updateUi.copy(checking = true, error = null, upToDate = false, hasUpdate = false, tag = "", readyFile = null)
             try {
                 val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
                 if (info == null) {
@@ -525,7 +525,7 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 } else if (AutoUpdate.isNewer(info.tag)) {
                     updateUi = updateUi.copy(
                         checking = false, tag = info.tag,
-                        apkUrl = info.apkUrl, htmlUrl = info.htmlUrl
+                        apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true
                     )
                 } else {
                     updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag)

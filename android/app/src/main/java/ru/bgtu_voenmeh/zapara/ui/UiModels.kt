@@ -24,6 +24,7 @@ data class UpdateUiState(
     val tag: String = "",
     val apkUrl: String? = null,
     val htmlUrl: String? = null,
+    val hasUpdate: Boolean = false,
     val upToDate: Boolean = false,
     val error: String? = null,
     val downloading: Boolean = false,

@@ -127,7 +127,7 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                             }
                         }
                     }
-                    u.tag.isNotEmpty() -> {
+                    u.hasUpdate -> {
                         Text("Доступно ${u.tag} (у вас ${AutoUpdate.CURRENT_TAG})", color = Marble, fontSize = 11.sp)
                         Row {
                             TextButton(onClick = { vm.startUpdateDownload() }) {
@@ -144,11 +144,19 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                         }
                     }
                     else -> {
-                        if (u.upToDate) Text("У вас последняя — ${u.tag}", color = MarbleDim, fontSize = 11.sp)
-                        if (u.error != null) Text(u.error, color = Cinnabar, fontSize = 11.sp)
-                        TextButton(onClick = { vm.checkUpdateManual() }) {
-                            Text("Проверить обновление", color = Bronze, fontSize = 11.sp)
+                        if (u.upToDate) {
+                            Text(
+                                "У вас последняя" + if (u.tag.isNotEmpty()) " — ${u.tag}" else "",
+                                color = MarbleDim, fontSize = 11.sp
+                            )
                         }
+                        if (u.error != null) Text(u.error, color = Cinnabar, fontSize = 11.sp)
+                    }
+                }
+                // Re-check is always available (except mid-check/download) — no dead ends.
+                if (!u.checking && !u.downloading) {
+                    TextButton(onClick = { vm.checkUpdateManual() }) {
+                        Text("Проверить обновление", color = Bronze, fontSize = 11.sp)
                     }
                 }
             }
