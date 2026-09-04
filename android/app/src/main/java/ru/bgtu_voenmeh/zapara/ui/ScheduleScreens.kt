@@ -19,11 +19,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -117,16 +115,20 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             )
         }
         Spacer(Modifier.height(8.dp))
-        // Tabs
+        // Compact day switcher: arrows flip Yesterday/Today/Tomorrow, center tap = Today.
         Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            TabButton("Вчера", s.tab == Tab.Yesterday) { vm.selectTab(Tab.Yesterday) }
-            TabButton("Сегодня", s.tab == Tab.Today) { vm.selectTab(Tab.Today) }
-            TabButton("Завтра", s.tab == Tab.Tomorrow) { vm.selectTab(Tab.Tomorrow) }
-            TabButton("Неделя", s.tab == Tab.Week) { vm.selectTab(Tab.Week) }
-            TabButton("Сводка", s.tab == Tab.Summary) { vm.selectTab(Tab.Summary) }
+            GhostBtn(text = "←", onClick = { vm.stepDay(-1) })
+            FerryBtn(
+                text = dayTabName(s.tab),
+                onClick = { vm.selectTab(Tab.Today) },
+                modifier = Modifier.weight(1f)
+            )
+            GhostBtn(text = "→", onClick = { vm.stepDay(1) })
+            if (s.tab != Tab.Week) GhostBtn(text = "Неделя", onClick = { vm.selectTab(Tab.Week) })
+            if (s.tab != Tab.Summary) GhostBtn(text = "Сводка", onClick = { vm.selectTab(Tab.Summary) })
         }
         Spacer(Modifier.height(8.dp))
         // Date + parity + week
@@ -144,8 +146,8 @@ fun ZaparaApp(vm: ScheduleViewModel) {
         if (s.tab == Tab.Week) {
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TabButton("Нечетная", s.weekParity == 1) { vm.selectWeekParity(1) }
-                TabButton("Четная", s.weekParity == 2) { vm.selectWeekParity(2) }
+                if (s.weekParity == 1) FerryBtn(text = "Нечетная", onClick = {}) else GhostBtn(text = "Нечетная", onClick = { vm.selectWeekParity(1) })
+                if (s.weekParity == 2) FerryBtn(text = "Четная", onClick = {}) else GhostBtn(text = "Четная", onClick = { vm.selectWeekParity(2) })
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -265,21 +267,12 @@ fun ZaparaApp(vm: ScheduleViewModel) {
     }
 }
 
-@Composable
-private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
-    if (selected) {
-        androidx.compose.material3.Button(
-            onClick = onClick,
-            colors = ButtonDefaults.buttonColors(containerColor = PanelAlt, contentColor = Bronze),
-            border = BorderStroke(1.5.dp, Bronze)
-        ) { Text(text, fontSize = 11.sp) }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-            border = BorderStroke(1.5.dp, BorderDim)
-        ) { Text(text, fontSize = 11.sp) }
-    }
+private fun dayTabName(tab: Tab): String = when (tab) {
+    Tab.Yesterday -> "Вчера"
+    Tab.Today -> "Сегодня"
+    Tab.Tomorrow -> "Завтра"
+    Tab.Week -> "Неделя"
+    Tab.Summary -> "Сводка"
 }
 
 @Composable

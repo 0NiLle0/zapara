@@ -178,6 +178,18 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { render(tab, state.groupId, state.weekParity, state.groups, state.groupId) }
     }
 
+    /** Arrow-step through Yesterday/Today/Tomorrow (clamped); from Week/Summary jumps to an edge day. */
+    fun stepDay(delta: Int) {
+        if (state.loading) return
+        val order = listOf(Tab.Yesterday, Tab.Today, Tab.Tomorrow)
+        val next = if (state.tab in order) {
+            order[(order.indexOf(state.tab) + delta).coerceIn(order.indices)]
+        } else {
+            if (delta < 0) Tab.Yesterday else Tab.Tomorrow
+        }
+        selectTab(next)
+    }
+
     fun selectWeekParity(parity: Int) {
         viewModelScope.launch { render(Tab.Week, state.groupId, parity, state.groups, state.groupId) }
     }
