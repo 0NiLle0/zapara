@@ -44,7 +44,7 @@
                                 </ComboBox>
                             </StackPanel>
                             <TextBlock x:Name="LblMyGroup" Text="Моя группа" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
-                            <ComboBox x:Name="SettingsGroupPicker" Margin="0,4,0,0" Height="26">
+                            <ComboBox x:Name="SettingsGroupPicker" Margin="0,4,0,0" Height="26" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" TextSearch.TextPath="Name" ToolTip="Введите текст для поиска группы">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Name}" Foreground="{StaticResource Marble}"/>
@@ -57,7 +57,7 @@
                             <TextBlock x:Name="LblFriendsTitle" Text="ДРУЗЬЯ (до 5)" Style="{StaticResource SectionLabel}" Margin="0,12,0,0"/>
                             <StackPanel x:Name="FriendsListPanel" Margin="0,6,0,0"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                <ComboBox x:Name="FriendGroupPicker" Width="180" Height="24" Margin="0,0,6,0">
+                                <ComboBox x:Name="FriendGroupPicker" Width="180" Height="24" Margin="0,0,6,0" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" TextSearch.TextPath="Name" ToolTip="Введите текст для поиска группы">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding Name}" Foreground="{StaticResource Marble}"/>
@@ -134,7 +134,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="LblGroup" Text="ГРУППА" Style="{StaticResource SectionLabel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="GroupPicker" Grid.Column="1" MinWidth="180" MaxWidth="260" HorizontalAlignment="Left" SelectionChanged="GroupPicker_Changed">
+                    <ComboBox x:Name="GroupPicker" Grid.Column="1" MinWidth="180" MaxWidth="260" HorizontalAlignment="Left" SelectionChanged="GroupPicker_Changed" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" TextSearch.TextPath="Name" ToolTip="Введите текст для поиска группы">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Name}" Foreground="{StaticResource Marble}"/>
@@ -288,7 +288,7 @@
                         <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MaxHeight="190">
                             <StackPanel>
                                 <TextBlock x:Name="LblMapAll" Text="Все карты" Foreground="{StaticResource MarbleDim}" FontSize="9" Margin="0,0,0,4"/>
-                                <ComboBox x:Name="MapPicker" Height="24" SelectionChanged="MapPicker_Changed"/>
+                                <ComboBox x:Name="MapPicker" Height="24" SelectionChanged="MapPicker_Changed" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" TextSearch.TextPath="Title" ToolTip="Введите текст для поиска карты (ГК/УЛК)"/>
                                 <TextBlock x:Name="TxtMapHint" Text="Карты с voenmeh.ru/openmap — ГК 1-4, УЛК 1-5; встроены в приложение, работают офлайн" Style="{StaticResource Dim}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="9"/>
                                 <TextBlock x:Name="MapCacheText" Text="Кэш: —" Style="{StaticResource Dim}" Margin="0,4,0,0" FontSize="9"/>
                                 <TextBlock x:Name="MapOfflineStatus" Text="Офлайн: проверка..." Foreground="{StaticResource Patina}" FontSize="9" Margin="0,3,0,0" FontWeight="SemiBold" TextWrapping="Wrap"/>

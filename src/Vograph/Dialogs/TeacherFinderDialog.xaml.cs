@@ -98,6 +98,7 @@ public partial class TeacherFinderDialog : Window
         }
         subjects.Insert(0, _i18n.Language == "en" ? "All subjects" : "Все предметы");
         CmbSubjectFilter.ItemsSource = subjects;
+        SearchableComboBox.Enable(CmbSubjectFilter, o => o as string ?? o?.ToString() ?? "");
         CmbSubjectFilter.SelectedIndex = 0;
         ChkOnlyMy.IsChecked = true;
         _onlyMy = true;

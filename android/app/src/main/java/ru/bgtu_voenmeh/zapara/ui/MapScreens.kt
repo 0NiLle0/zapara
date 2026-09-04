@@ -30,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -106,6 +109,13 @@ fun MapCard(
     onClose: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var mapQuery by remember { mutableStateOf("") }
+    val filteredMaps = remember(maps, mapQuery) {
+        val q = mapQuery.trim()
+        if (q.isEmpty()) maps
+        else maps.filter { it.title.contains(q, ignoreCase = true) || it.fileName.contains(q, ignoreCase = true) }
+    }
+    val mapSearchFocus = remember { FocusRequester() }
     Card(
         colors = CardDefaults.cardColors(containerColor = Panel),
         border = BorderStroke(1.dp, BorderDim),
@@ -122,7 +132,10 @@ fun MapCard(
                 )
                 TextButton(onClick = onClose) { Text("✕", color = MarbleDim, fontSize = 10.sp) }
             }
-            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = {
+                expanded = !expanded
+                if (!expanded) mapQuery = ""
+            }) {
                 OutlinedTextField(
                     value = current?.title ?: "Все карты",
                     onValueChange = {}, readOnly = true,
@@ -132,14 +145,38 @@ fun MapCard(
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = { expanded = false; mapQuery = "" }
                 ) {
-                    maps.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m.title, color = Marble, fontSize = 11.sp) },
-                            onClick = { onPick(m); expanded = false }
-                        )
+                    OutlinedTextField(
+                        value = mapQuery, onValueChange = { mapQuery = it },
+                        label = { Text("Поиск карты", fontSize = 9.sp) },
+                        leadingIcon = { Text("⌕", color = MarbleDim, fontSize = 12.sp) },
+                        trailingIcon = {
+                            if (mapQuery.isNotEmpty()) TextButton(onClick = { mapQuery = "" }) {
+                                Text("✕", color = MarbleDim, fontSize = 10.sp)
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .focusRequester(mapSearchFocus)
+                    )
+                    if (filteredMaps.isEmpty()) {
+                        Text("Не найдено", color = MarbleDim, fontSize = 11.sp, modifier = Modifier.padding(12.dp))
+                    } else {
+                        filteredMaps.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m.title, color = Marble, fontSize = 11.sp) },
+                                onClick = { onPick(m); expanded = false; mapQuery = "" }
+                            )
+                        }
                     }
+                }
+            }
+            LaunchedEffect(expanded) {
+                if (expanded) {
+                    try { mapSearchFocus.requestFocus() } catch (_: Exception) { }
                 }
             }
             Spacer(Modifier.height(6.dp))

@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -188,8 +191,18 @@ private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     val selectedName = groups.firstOrNull { it.first == selectedId }?.second ?: "—"
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+    val filtered = remember(groups, query) {
+        val q = query.trim()
+        if (q.isEmpty()) groups
+        else groups.filter { it.second.contains(q, ignoreCase = true) || it.first.contains(q, ignoreCase = true) }
+    }
+    val searchFocus = remember { FocusRequester() }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = {
+        expanded = !expanded
+        if (!expanded) query = ""
+    }) {
         OutlinedTextField(
             value = selectedName, onValueChange = {},
             readOnly = true, label = { Text("Группа", fontSize = 10.sp) },
@@ -200,14 +213,42 @@ private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false; query = "" }
         ) {
-            groups.forEach { (id, name) ->
-                DropdownMenuItem(
-                    text = { Text(name, color = Marble, fontSize = 11.sp) },
-                    onClick = { onSelect(id); expanded = false }
-                )
+            OutlinedTextField(
+                value = query, onValueChange = { query = it },
+                label = { Text("Поиск группы", fontSize = 10.sp) },
+                leadingIcon = { Text("⌕", color = MarbleDim, fontSize = 12.sp) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) TextButton(onClick = { query = "" }) {
+                        Text("✕", color = MarbleDim, fontSize = 10.sp)
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .focusRequester(searchFocus)
+            )
+            Text(
+                "${filtered.size}/${groups.size}", color = MarbleDim, fontSize = 9.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+            if (filtered.isEmpty()) {
+                Text("Не найдено", color = MarbleDim, fontSize = 11.sp, modifier = Modifier.padding(12.dp))
+            } else {
+                filtered.forEach { (id, name) ->
+                    DropdownMenuItem(
+                        text = { Text(name, color = Marble, fontSize = 11.sp) },
+                        onClick = { onSelect(id); expanded = false; query = "" }
+                    )
+                }
             }
+        }
+    }
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            try { searchFocus.requestFocus() } catch (_: Exception) { }
         }
     }
 }

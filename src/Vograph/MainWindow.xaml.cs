@@ -158,6 +158,9 @@ public partial class MainWindow : Window
         GroupPicker.SelectedValuePath = "Id";
         SettingsGroupPicker.ItemsSource = groups;
         SettingsGroupPicker.SelectedValuePath = "Id";
+        // searchable dropdowns: editable text filters items (group name)
+        SearchableComboBox.Enable(GroupPicker, o => (o as Group)?.Name ?? o?.ToString() ?? "");
+        SearchableComboBox.Enable(SettingsGroupPicker, o => (o as Group)?.Name ?? o?.ToString() ?? "");
         var settings = _db.GetSettings();
         ChkInvertParity.IsChecked = settings.ParityInvert;
         // avoid duplicate handlers
@@ -331,6 +334,7 @@ public partial class MainWindow : Window
         var groups = _db.GetAllGroups();
         FriendGroupPicker.ItemsSource = groups;
         FriendGroupPicker.SelectedValuePath = "Name";
+        SearchableComboBox.Enable(FriendGroupPicker, o => (o as Group)?.Name ?? o?.ToString() ?? "");
         var settings = _db.GetSettings();
         // Strictness UI is collapsed, but keep logic for traffic light filtering (default 25)
         try
@@ -460,6 +464,7 @@ public partial class MainWindow : Window
             MapPicker.ItemsSource = _mapService.GetAllMaps();
             MapPicker.DisplayMemberPath = "Title";
             MapPicker.SelectedValuePath = "Url";
+            SearchableComboBox.Enable(MapPicker, o => (o as MapInfo)?.Title ?? o?.ToString() ?? "");
             // set default hint
             MapCacheText.Text = _i18n != null ? _i18n.T("mapCacheDir", MapService.GetMapsCacheDir()) : $"Кэш: {MapService.GetMapsCacheDir()}";
             MapPicker.SelectionChanged += MapPicker_Changed;

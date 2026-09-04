@@ -155,7 +155,7 @@ fun FriendsDialog(
     onSaveNames: (Friend, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var picked by remember { mutableStateOf(allGroups.firstOrNull()?.name.orEmpty()) }
+    var friendQuery by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Panel,
@@ -201,19 +201,48 @@ fun FriendsDialog(
                     }
                 }
                 if (friends.size < 5) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = picked,
-                            onValueChange = { picked = it },
-                            label = { Text("Группа", fontSize = 9.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        OutlinedButton(
-                            onClick = { onAdd(picked) },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-                            border = BorderStroke(1.dp, BorderDim)
-                        ) { Text("+", fontSize = 11.sp) }
+                    val matches = remember(friendQuery, allGroups, friends) {
+                        val q = friendQuery.trim()
+                        val notAdded = allGroups.filter { g -> friends.none { it.groupName == g.name } }
+                        if (q.isEmpty()) notAdded.take(6)
+                        else notAdded.filter {
+                            it.name.contains(q, ignoreCase = true) || it.id.contains(q, ignoreCase = true)
+                        }.take(6)
+                    }
+                    OutlinedTextField(
+                        value = friendQuery,
+                        onValueChange = { friendQuery = it },
+                        label = { Text("Поиск группы", fontSize = 9.sp) },
+                        leadingIcon = { Text("⌕", color = MarbleDim, fontSize = 12.sp) },
+                        trailingIcon = {
+                            if (friendQuery.isNotEmpty()) TextButton(onClick = { friendQuery = "" }) {
+                                Text("✕", color = MarbleDim, fontSize = 10.sp)
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    matches.forEach { g ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(g.name, color = Marble, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { onAdd(g.name); friendQuery = "" }) {
+                                Text("+", color = Bronze, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    val typed = friendQuery.trim()
+                    if (typed.isNotEmpty() && matches.none { it.name.equals(typed, ignoreCase = true) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "Добавить «$typed»", color = MarbleDim, fontSize = 10.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedButton(
+                                onClick = { onAdd(typed); friendQuery = "" },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
+                                border = BorderStroke(1.dp, BorderDim)
+                            ) { Text("+", fontSize = 11.sp) }
+                        }
                     }
                 }
             }

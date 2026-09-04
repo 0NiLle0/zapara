@@ -19,7 +19,7 @@
             <Grid Grid.Row="1" Margin="0,0,0,8">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <TextBox x:Name="TxtSearch" Grid.Column="0" Height="24" Background="{StaticResource PanelAlt}" Foreground="{StaticResource Marble}" BorderBrush="{StaticResource BorderDim}" CaretBrush="{StaticResource Bronze}" Tag="Поиск по преподавателю или предмету..." TextChanged="Search_TextChanged" VerticalContentAlignment="Center" Padding="6,0"/>
-                <ComboBox x:Name="CmbSubjectFilter" Grid.Column="1" Height="24" Margin="8,0,0,0" SelectionChanged="SubjectFilter_Changed">
+                <ComboBox x:Name="CmbSubjectFilter" Grid.Column="1" Height="24" Margin="8,0,0,0" SelectionChanged="SubjectFilter_Changed" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" ToolTip="Введите текст для поиска предмета">
                     <ComboBox.ItemTemplate>
                         <DataTemplate><TextBlock Text="{Binding}" Foreground="{StaticResource Marble}"/></DataTemplate>
                     </ComboBox.ItemTemplate>
