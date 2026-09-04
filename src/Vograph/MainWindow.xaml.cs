@@ -89,6 +89,8 @@ public partial class MainWindow : Window
             RenderCurrentView();
             StatusText.Text = _i18n.T("ready");
             UpdateLastAutoCheckText();
+            // temp auto-update from git: check github releases on startup (non-blocking)
+            _ = CheckForUpdateAsync(silent: true);
         }
         catch (Exception ex)
         {
@@ -2274,6 +2276,34 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { StatusText.Text = $"Ошибка импорта: {ex.Message}"; MessageBox.Show($"Ошибка импорта: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
+
+    private async Task CheckForUpdateAsync(bool silent)
+    {
+        try
+        {
+            var svc = new AutoUpdateService();
+            var info = await svc.GetLatestAsync("windows");
+            if (info == null) { if (!silent) MessageBox.Show("Не удалось проверить обновления (API).", "Обновление", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+            bool newer = AutoUpdateService.IsNewer(info.Tag, AutoUpdateService.CurrentTagWindows);
+            if (newer)
+            {
+                var res = MessageBox.Show($"Доступно обновление {info.Tag}\nТекущая {AutoUpdateService.CurrentTagWindows}\n\nОткрыть релиз?\n{info.HtmlUrl}\n{(info.ZipUrl ?? "")}", "Обновление ЗАПАРА", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (res == MessageBoxResult.Yes) Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true });
+                StatusText.Text = $"Доступно обновление {info.Tag}";
+            }
+            else
+            {
+                if (!silent) MessageBox.Show($"У вас последняя версия {AutoUpdateService.CurrentTagWindows}\nПоследний релиз {info.Tag}", "Обновление", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText.Text = $"Обновлений нет ({info.Tag})";
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!silent) MessageBox.Show($"Проверка обновления: {ex.Message}", "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e) => await CheckForUpdateAsync(silent: false);
 
     protected override void OnClosed(EventArgs e)
     {

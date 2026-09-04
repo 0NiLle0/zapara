@@ -110,6 +110,7 @@
                             <TextBlock x:Name="LastUpdatedText" Text="Обновлено: —" Style="{StaticResource Dim}" Margin="0,8,0,0"/>
                             <TextBlock x:Name="LastAutoCheckText" Text="Автопроверка: —" Style="{StaticResource Dim}" Margin="0,2,0,0" FontSize="9"/>
                             <Button x:Name="BtnRefreshSettings" Content="Обновить расписание" Style="{StaticResource FerryButton}" Margin="0,10,0,0" Click="Refresh_Click"/>
+                            <Button x:Name="BtnCheckUpdate" Content="Проверить обновление (GitHub)" Style="{StaticResource GhostButton}" Margin="0,6,0,0" Click="CheckUpdate_Click" ToolTip="Временно: проверка релиза на github.com/0NiLle0/zapara"/>
                         </StackPanel>
                         </ScrollViewer>
                     </Border>

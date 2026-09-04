@@ -35,13 +35,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import ru.bgtu_voenmeh.zapara.data.AutoUpdate
 import ru.bgtu_voenmeh.zapara.data.Lesson
 import ru.bgtu_voenmeh.zapara.data.Homework
 import ru.bgtu_voenmeh.zapara.data.Parity
@@ -90,6 +96,7 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 TextButton(onClick = { vm.toggleMap() }) {
                     Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
+                UpdateCheckButton()
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -545,5 +552,62 @@ private fun SummaryCard(sec: SummarySection) {
 fun RefreshButton(vm: ScheduleViewModel) {
     TextButton(onClick = { vm.refresh() }) {
         Text("Обновить", color = Bronze, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun UpdateCheckButton() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var apkUrl by remember { mutableStateOf<String?>(null) }
+    var tag by remember { mutableStateOf<String?>(null) }
+    TextButton(onClick = {
+        if (checking) return@TextButton
+        checking = true
+        result = null
+        scope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
+                if (info == null) result = "Не удалось проверить (API)"
+                else if (AutoUpdate.isNewer(info.tag)) {
+                    result = "Доступно ${info.tag} (у вас ${AutoUpdate.CURRENT_TAG})"
+                    apkUrl = info.apkUrl
+                    tag = info.tag
+                } else result = "У вас последняя — ${info.tag}"
+                if (info != null && AutoUpdate.isNewer(info.tag) && info.htmlUrl.isNotEmpty()) {
+                    // keep html for fallback
+                    apkUrl = apkUrl ?: info.htmlUrl
+                }
+            } catch (e: Exception) { result = "Ошибка: ${e.message}" }
+            finally { checking = false }
+        }
+    }) {
+        Text(if (checking) "Проверка..." else "Обновление", color = Bronze, fontSize = 11.sp, maxLines = 1)
+    }
+    if (result != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { result = null; apkUrl = null },
+            containerColor = Panel,
+            title = { Text("Обновление", color = Bronze, fontSize = 12.sp) },
+            text = { Text(result!! + (apkUrl?.let { "\n$it" } ?: ""), color = Marble, fontSize = 11.sp) },
+            confirmButton = {
+                if (apkUrl != null && tag != null && AutoUpdate.isNewer(tag!!)) {
+                    TextButton(onClick = {
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
+                            ctx.startActivity(intent)
+                        } catch (_: Exception) {}
+                        result = null; apkUrl = null
+                    }) { Text("Открыть релиз", color = Bronze, fontSize = 11.sp) }
+                } else {
+                    TextButton(onClick = { result = null; apkUrl = null }) { Text("OK", color = Bronze, fontSize = 11.sp) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { result = null; apkUrl = null }) { Text("Закрыть", color = MarbleDim, fontSize = 11.sp) }
+            }
+        )
     }
 }
