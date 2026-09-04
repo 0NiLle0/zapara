@@ -89,8 +89,8 @@ public partial class MainWindow : Window
             RenderCurrentView();
             StatusText.Text = _i18n.T("ready");
             UpdateLastAutoCheckText();
-            // temp auto-update from git: check github releases on startup (non-blocking)
-            _ = CheckForUpdateAsync(silent: true);
+            // silent self-update from git on startup (non-blocking, opt-out via settings)
+            _ = AutoUpdateFlowAsync(manual: false);
         }
         catch (Exception ex)
         {
@@ -168,6 +168,11 @@ public partial class MainWindow : Window
         ChkInvertParity.Unchecked -= ChkInvertParity_Checked;
         ChkInvertParity.Checked += ChkInvertParity_Checked;
         ChkInvertParity.Unchecked += ChkInvertParity_Checked;
+        ChkAutoUpdate.Checked -= ChkAutoUpdate_Changed;
+        ChkAutoUpdate.Unchecked -= ChkAutoUpdate_Changed;
+        ChkAutoUpdate.IsChecked = settings.AutoUpdate;
+        ChkAutoUpdate.Checked += ChkAutoUpdate_Changed;
+        ChkAutoUpdate.Unchecked += ChkAutoUpdate_Changed;
         if (!string.IsNullOrEmpty(settings.MyGroupId))
         {
             GroupPicker.SelectedValue = settings.MyGroupId;
@@ -265,6 +270,7 @@ public partial class MainWindow : Window
         if (LblLanguage != null) LblLanguage.Text = _i18n.T("language");
         if (LblMyGroup != null) LblMyGroup.Text = _i18n.T("myGroup");
         if (ChkInvertParity != null) ChkInvertParity.Content = _i18n.T("invertParity");
+        if (ChkAutoUpdate != null) ChkAutoUpdate.Content = _i18n.T("autoUpdate");
         if (TxtInvertHint != null) TxtInvertHint.Text = _i18n.T("invertHint");
         if (LblFriendsTitle != null) LblFriendsTitle.Text = _i18n.T("friends");
         if (TxtFriendsHint != null) TxtFriendsHint.Text = _i18n.T("friendsHint");
@@ -2282,33 +2288,82 @@ public partial class MainWindow : Window
         catch (Exception ex) { StatusText.Text = $"Ошибка импорта: {ex.Message}"; MessageBox.Show($"Ошибка импорта: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
-    private async Task CheckForUpdateAsync(bool silent)
+    // Silent self-update: download zip in background, ask once to restart into it.
+    // The running EXE cannot replace itself, so a small update.bat waits for exit,
+    // unpacks over the install dir and starts the app again.
+    private async Task AutoUpdateFlowAsync(bool manual)
     {
+        if (_db == null || _i18n == null) return;
+        if (!manual && !_db.GetSettings().AutoUpdate) return;
+        AutoUpdateService.UpdateInfo? info = null;
+        try { info = await new AutoUpdateService().GetLatestAsync("windows"); }
+        catch { if (manual) MessageBox.Show(_i18n.T("updFail"), _i18n.T("updTitle"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+        if (info == null || string.IsNullOrEmpty(info.ZipUrl))
+        {
+            if (manual) MessageBox.Show(_i18n.T("updFail"), _i18n.T("updTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!AutoUpdateService.IsNewer(info.Tag, AutoUpdateService.CurrentTagWindows))
+        {
+            if (manual) MessageBox.Show(_i18n.T("updNone", AutoUpdateService.CurrentTagWindows), _i18n.T("updTitle"), MessageBoxButton.OK, MessageBoxImage.Information);
+            StatusText.Text = _i18n.T("updNone", info.Tag);
+            return;
+        }
+        string zip = Path.Combine(AutoUpdateService.UpdatesDir, $"ZAPARA_{info.Tag}_win-x64.zip");
         try
         {
-            var svc = new AutoUpdateService();
-            var info = await svc.GetLatestAsync("windows");
-            if (info == null) { if (!silent) MessageBox.Show("Не удалось проверить обновления (API).", "Обновление", MessageBoxButton.OK, MessageBoxImage.Information); return; }
-            bool newer = AutoUpdateService.IsNewer(info.Tag, AutoUpdateService.CurrentTagWindows);
-            if (newer)
+            if (!File.Exists(zip))
             {
-                var res = MessageBox.Show($"Доступно обновление {info.Tag}\nТекущая {AutoUpdateService.CurrentTagWindows}\n\nОткрыть релиз?\n{info.HtmlUrl}\n{(info.ZipUrl ?? "")}", "Обновление ЗАПАРА", MessageBoxButton.YesNo, MessageBoxImage.Information);
-                if (res == MessageBoxResult.Yes) Process.Start(new ProcessStartInfo(info.HtmlUrl) { UseShellExecute = true });
-                StatusText.Text = $"Доступно обновление {info.Tag}";
+                StatusText.Text = _i18n.T("updDownloading", info.Tag);
+                var svc = new AutoUpdateService();
+                var prog = new Progress<double>(p => Dispatcher.Invoke(() =>
+                    StatusText.Text = $"{_i18n.T("updDownloading", info.Tag)} {(int)(p * 100)}%"));
+                await svc.DownloadAssetAsync(info.ZipUrl, zip, prog);
             }
-            else
-            {
-                if (!silent) MessageBox.Show($"У вас последняя версия {AutoUpdateService.CurrentTagWindows}\nПоследний релиз {info.Tag}", "Обновление", MessageBoxButton.OK, MessageBoxImage.Information);
-                StatusText.Text = $"Обновлений нет ({info.Tag})";
-            }
+            var res = MessageBox.Show(_i18n.T("updReady", info.Tag), _i18n.T("updTitle"), MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (res == MessageBoxResult.Yes) await ApplyUpdateAndRestartAsync(zip);
+            else StatusText.Text = _i18n.T("updReady", info.Tag);
         }
         catch (Exception ex)
         {
-            if (!silent) MessageBox.Show($"Проверка обновления: {ex.Message}", "Обновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+            StatusText.Text = $"{_i18n.T("updFail")}: {ex.Message}";
+            if (manual) MessageBox.Show($"{_i18n.T("updFail")}: {ex.Message}", _i18n.T("updTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
-    private async void CheckUpdate_Click(object sender, RoutedEventArgs e) => await CheckForUpdateAsync(silent: false);
+    private Task ApplyUpdateAndRestartAsync(string zipPath)
+    {
+        try
+        {
+            string appDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+            string batPath = Path.Combine(Path.GetTempPath(), "zapara_update.bat");
+            string bat =
+                "@echo off\r\n" +
+                "set APPDIR=" + appDir + "\r\n" +
+                ":wait\r\n" +
+                "tasklist /FI \"IMAGENAME eq Vograph.exe\" 2>NUL | find /I \"Vograph.exe\" >NUL\r\n" +
+                "if not errorlevel 1 (timeout /t 1 /nobreak >NUL & goto wait)\r\n" +
+                "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -LiteralPath '" + zipPath.Replace("'", "''") + "' -DestinationPath '\"%APPDIR%\"' -Force\"\r\n" +
+                "start \"\" \"%APPDIR%\\Vograph.exe\"\r\n" +
+                "del \"%~f0\"\r\n";
+            File.WriteAllText(batPath, bat, System.Text.Encoding.ASCII);
+            Process.Start(new ProcessStartInfo(batPath) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex) { StatusText.Text = $"{_i18n?.T("updFail")}: {ex.Message}"; }
+        return Task.CompletedTask;
+    }
+
+    private void ChkAutoUpdate_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_db == null || _isLoading) return;
+        var s = _db.GetSettings();
+        s.AutoUpdate = ChkAutoUpdate.IsChecked == true;
+        _db.SaveSettings(s);
+        StatusText.Text = s.AutoUpdate ? _i18n?.T("updatedOk") ?? "OK" : "Автообновление выключено";
+    }
+
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e) => await AutoUpdateFlowAsync(manual: true);
 
     protected override void OnClosed(EventArgs e)
     {

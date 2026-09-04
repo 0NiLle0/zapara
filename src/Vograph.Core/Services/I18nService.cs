@@ -96,6 +96,13 @@ public class I18nService
             ["nextPair"] = "След. пара",
             ["nextPairHint"] = "Дата следующей пары по этому предмету",
             ["weekNum"] = "неделя {0}",
+            // Self-update (GitHub releases)
+            ["autoUpdate"] = "Автообновление с GitHub",
+            ["updTitle"] = "Обновление",
+            ["updDownloading"] = "Скачивание обновления {0}...",
+            ["updReady"] = "Обновление {0} скачано. Перезапустить сейчас для установки?",
+            ["updNone"] = "У вас последняя версия {0}",
+            ["updFail"] = "Не удалось проверить обновление",
             // Weekday names for API parity (already above)
         },
         ["en"] = new(StringComparer.OrdinalIgnoreCase)
@@ -176,6 +183,12 @@ public class I18nService
             ["nextPair"] = "Next",
             ["nextPairHint"] = "Date of next occurrence for this subject",
             ["weekNum"] = "week {0}",
+            ["autoUpdate"] = "Auto-update from GitHub",
+            ["updTitle"] = "Update",
+            ["updDownloading"] = "Downloading update {0}...",
+            ["updReady"] = "Update {0} downloaded. Restart now to install?",
+            ["updNone"] = "You have the latest version {0}",
+            ["updFail"] = "Failed to check for updates",
         }
     };
 

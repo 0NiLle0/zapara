@@ -110,6 +110,7 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
         TryAddColumn("settings", "lastAutoCheckAt", "TEXT");
         TryAddColumn("settings", "mapPanelWidth", "INTEGER NOT NULL DEFAULT 300");
         TryAddColumn("settings", "alwaysShowAllTrafficLights", "INTEGER NOT NULL DEFAULT 0");
+        TryAddColumn("settings", "autoUpdate", "INTEGER NOT NULL DEFAULT 1");
         // Migrate old strictness 50 (old default) to 25 (new default = "в вузе" visible) — buildings are close, red for "в вузе" was confusing
         try { using var c = _conn.CreateCommand(); c.CommandText = "UPDATE settings SET intersectionStrictness=25 WHERE intersectionStrictness=50"; c.ExecuteNonQuery(); } catch {}
     }
@@ -128,7 +129,7 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
     public Settings GetSettings()
     {
         using var cmd = _conn.CreateCommand();
-        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, language, lastSyncAt, lastFetchedAt, lastAutoCheckAt, weekCount, periodTitle, periodStart, mapPanelWidth, alwaysShowAllTrafficLights FROM settings WHERE id=1";
+        cmd.CommandText = "SELECT myGroupId, parityInvert, notifyTime1, notifyTime2, intersectionStrictness, language, lastSyncAt, lastFetchedAt, lastAutoCheckAt, weekCount, periodTitle, periodStart, mapPanelWidth, alwaysShowAllTrafficLights, autoUpdate FROM settings WHERE id=1";
         using var r = cmd.ExecuteReader();
         if (!r.Read()) return new Settings();
         int mapW = 300;
@@ -136,6 +137,8 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
         if (mapW < 220) mapW = 220; if (mapW > 620) mapW = 620;
         bool alwaysShow = false;
         try { alwaysShow = !r.IsDBNull(13) && r.GetInt32(13) != 0; } catch { try { alwaysShow = !r.IsDBNull(13) && r.GetInt64(13) != 0; } catch {} }
+        bool autoUpdate = true;
+        try { autoUpdate = r.IsDBNull(14) || r.GetInt64(14) != 0; } catch { try { autoUpdate = r.IsDBNull(14) || r.GetInt32(14) != 0; } catch {} }
         return new Settings
         {
             MyGroupId = r.IsDBNull(0) ? null : r.GetString(0),
@@ -151,7 +154,8 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
             PeriodTitle = r.IsDBNull(10) ? null : r.GetString(10),
             PeriodStart = r.IsDBNull(11) ? null : r.GetString(11),
             MapPanelWidth = mapW,
-            AlwaysShowAllTrafficLights = alwaysShow
+            AlwaysShowAllTrafficLights = alwaysShow,
+            AutoUpdate = autoUpdate
         };
     }
 
@@ -163,7 +167,8 @@ INSERT OR IGNORE INTO settings (id, parityInvert, intersectionStrictness, weekCo
 UPDATE settings SET
     myGroupId=@g, parityInvert=@inv, notifyTime1=@t1, notifyTime2=@t2,
     intersectionStrictness=@strict, language=@lang, lastSyncAt=@sync, lastFetchedAt=@lf, lastAutoCheckAt=@lac,
-    weekCount=@wc, periodTitle=@pt, periodStart=@ps, mapPanelWidth=@mpw, alwaysShowAllTrafficLights=@all
+    weekCount=@wc, periodTitle=@pt, periodStart=@ps, mapPanelWidth=@mpw, alwaysShowAllTrafficLights=@all,
+    autoUpdate=@au
 WHERE id=1";
         cmd.Parameters.AddWithValue("@g", (object?)s.MyGroupId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@inv", s.ParityInvert ? 1 : 0);
@@ -179,6 +184,7 @@ WHERE id=1";
         cmd.Parameters.AddWithValue("@ps", (object?)s.PeriodStart ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@mpw", mapW);
         cmd.Parameters.AddWithValue("@all", s.AlwaysShowAllTrafficLights ? 1 : 0);
+        cmd.Parameters.AddWithValue("@au", s.AutoUpdate ? 1 : 0);
         cmd.ExecuteNonQuery();
     }
 

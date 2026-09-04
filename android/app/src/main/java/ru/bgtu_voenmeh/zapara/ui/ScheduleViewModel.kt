@@ -8,10 +8,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.DayOfWeek
+import ru.bgtu_voenmeh.zapara.data.AutoUpdate
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
 import ru.bgtu_voenmeh.zapara.data.Friend
 import ru.bgtu_voenmeh.zapara.data.Homework
@@ -108,6 +112,11 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     )
     var state by mutableStateOf(ScheduleUiState())
         private set
+    var updateUi by mutableStateOf(UpdateUiState())
+        private set
+    private var dlJob: Job? = null
+    @Volatile private var dlCancel = false
+    private var firedFor: String? = null
 
     init {
         viewModelScope.launch {
@@ -127,6 +136,22 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 android.util.Log.d("ZaparaApp", "init error: $e")
                 state = state.copy(loading = false, error = e.message ?: "load error")
+            }
+        }
+        // Silent self-update check on launch (opt-out via Settings).
+        viewModelScope.launch {
+            try {
+                val auto = withContext(Dispatchers.IO) {
+                    AutoUpdate.isAutoUpdateEnabled(getApplication())
+                }
+                updateUi = updateUi.copy(auto = auto)
+                if (!auto) return@launch
+                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
+                    ?: return@launch
+                if (!AutoUpdate.isNewer(info.tag)) return@launch
+                updateUi = updateUi.copy(tag = info.tag, apkUrl = info.apkUrl, htmlUrl = info.htmlUrl)
+                if (info.apkUrl != null) startUpdateDownload()
+            } catch (_: Exception) {
             }
         }
         // Lecturer schedule loads in background (bundled asset, offline-first).
@@ -480,6 +505,102 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- Self-update (GitHub releases) ----
+
+    fun setAutoUpdate(v: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try { AutoUpdate.setAutoUpdateEnabled(getApplication(), v) } catch (_: Exception) {}
+        }
+        updateUi = updateUi.copy(auto = v)
+    }
+
+    fun checkUpdateManual() {
+        if (updateUi.checking || updateUi.downloading) return
+        viewModelScope.launch {
+            updateUi = updateUi.copy(checking = true, error = null, upToDate = false, tag = "", readyFile = null)
+            try {
+                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
+                if (info == null) {
+                    updateUi = updateUi.copy(checking = false, error = "Не удалось проверить (API)")
+                } else if (AutoUpdate.isNewer(info.tag)) {
+                    updateUi = updateUi.copy(
+                        checking = false, tag = info.tag,
+                        apkUrl = info.apkUrl, htmlUrl = info.htmlUrl
+                    )
+                } else {
+                    updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag)
+                }
+            } catch (e: Exception) {
+                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message}")
+            }
+        }
+    }
+
+    fun startUpdateDownload() {
+        val tag = updateUi.tag
+        val url = updateUi.apkUrl
+        if (tag.isEmpty() || url == null || updateUi.downloading) return
+        dlJob?.cancel()
+        dlJob = viewModelScope.launch {
+            updateUi = updateUi.copy(downloading = true, progress = -1f, error = null)
+            dlCancel = false
+            try {
+                val app = getApplication<Application>()
+                val dest = AutoUpdate.apkFileFor(app, tag)
+                if (!dest.exists()) {
+                    val main = android.os.Handler(android.os.Looper.getMainLooper())
+                    var lastEmit = 0L
+                    withContext(Dispatchers.IO) {
+                        AutoUpdate.downloadAsset(
+                            url, dest,
+                            onProgress = { done, total ->
+                                val now = android.os.SystemClock.uptimeMillis()
+                                if (now - lastEmit > 250) {
+                                    lastEmit = now
+                                    val p = if (total > 0) done.toFloat() / total else -1f
+                                    main.post {
+                                        updateUi = updateUi.copy(progress = p, doneBytes = done, totalBytes = total)
+                                    }
+                                }
+                            },
+                            isCancelled = { dlCancel }
+                        )
+                    }
+                }
+                updateUi = updateUi.copy(downloading = false, progress = 1f, readyFile = dest.absolutePath)
+                fireInstaller(dest)
+            } catch (_: CancellationException) {
+                updateUi = updateUi.copy(downloading = false)
+            } catch (_: AutoUpdate.DownloadCancelled) {
+                updateUi = updateUi.copy(downloading = false)
+            } catch (e: Exception) {
+                updateUi = updateUi.copy(downloading = false, error = "Скачивание: ${e.message}")
+            }
+        }
+    }
+
+    fun cancelUpdateDownload() {
+        dlCancel = true
+        dlJob?.cancel()
+        updateUi = updateUi.copy(downloading = false)
+    }
+
+    fun dismissUpdate() {
+        updateUi = UpdateUiState(auto = updateUi.auto)
+        firedFor = null
+    }
+
+    /** Open the system installer for a downloaded APK (one user tap on Install is required by the OS). */
+    fun fireInstaller(file: File) {
+        try {
+            if (firedFor == file.absolutePath) return
+            firedFor = file.absolutePath
+            val app = getApplication<Application>()
+            app.startActivity(AutoUpdate.installIntent(app, file))
+        } catch (_: Exception) {
+        }
+    }
+
     // ---- Maps (A4) ----
 
     private fun allMaps(): List<MapInfo> =
@@ -504,13 +625,6 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             }
         } else {
             state = state.copy(mapVisible = show)
-        }
-    }
-
-    fun pickMap(m: MapInfo) {
-        viewModelScope.launch {
-            val path = withContext(Dispatchers.IO) { mapStore.mapFile(m.fileName)?.absolutePath }
-            state = state.copy(currentMap = m, mapPath = path)
         }
     }
 
@@ -589,6 +703,10 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             val details = withContext(Dispatchers.IO) { lecturerStore.lessonsFor(t.id) }
             state = state.copy(teacherSelected = t, teacherDetails = details)
         }
+    }
+
+    fun deselectTeacher() {
+        state = state.copy(teacherSelected = null, teacherDetails = emptyList())
     }
 
     fun isMyTeacher(t: LecturerInfo): Boolean {

@@ -22,35 +22,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import ru.bgtu_voenmeh.zapara.data.AutoUpdate
 import ru.bgtu_voenmeh.zapara.data.Lesson
 import ru.bgtu_voenmeh.zapara.data.Homework
 import ru.bgtu_voenmeh.zapara.data.Parity
@@ -58,6 +44,7 @@ import ru.bgtu_voenmeh.zapara.ui.theme.BorderDim
 import ru.bgtu_voenmeh.zapara.ui.theme.Bronze
 import ru.bgtu_voenmeh.zapara.ui.theme.Marble
 import ru.bgtu_voenmeh.zapara.ui.theme.MarbleDim
+import ru.bgtu_voenmeh.zapara.ui.theme.Obsidian
 import ru.bgtu_voenmeh.zapara.ui.theme.Panel
 import ru.bgtu_voenmeh.zapara.ui.theme.PanelAlt
 import ru.bgtu_voenmeh.zapara.ui.theme.Patina
@@ -65,9 +52,11 @@ import ru.bgtu_voenmeh.zapara.ui.theme.Patina
 @Composable
 fun ZaparaApp(vm: ScheduleViewModel) {
     val s = vm.state
+    var groupSelectOpen by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Obsidian)
             .padding(10.dp)
     ) {
         // Header — 2 rows to avoid squeeze on 360dp (was wrapping "нечетн/ая/неделя" per letter)
@@ -89,7 +78,9 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RefreshButton(vm)
+                TextButton(onClick = { vm.openDialog(UiDialog.Settings) }) {
+                    Text("Настройки", color = Bronze, fontSize = 11.sp, maxLines = 1)
+                }
                 TextButton(onClick = { vm.openDialog(UiDialog.Friends) }) {
                     Text("Друзья", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
@@ -99,16 +90,25 @@ fun ZaparaApp(vm: ScheduleViewModel) {
                 TextButton(onClick = { vm.toggleMap() }) {
                     Text(if (s.mapVisible) "Скрыть карту" else "Карта", color = Bronze, fontSize = 11.sp, maxLines = 1)
                 }
-                UpdateCheckButton()
             }
         }
         Spacer(Modifier.height(8.dp))
-        // Group picker
-        GroupDropdown(
-            groups = s.groups.map { it.id to it.name },
-            selectedId = s.groupId,
-            onSelect = { vm.selectGroup(it) }
+        // Group selector — opens a search dialog (popup menus misplace on some devices)
+        SelectField(
+            value = s.groups.firstOrNull { it.id == s.groupId }?.name,
+            placeholder = "Выбрать группу",
+            onClick = { groupSelectOpen = true },
+            modifier = Modifier.fillMaxWidth()
         )
+        if (groupSelectOpen) {
+            SearchSelectDialog(
+                title = "Группа",
+                searchLabel = "Поиск группы",
+                items = s.groups.map { it.id to it.name },
+                onSelect = { vm.selectGroup(it.first); groupSelectOpen = false },
+                onDismiss = { groupSelectOpen = false }
+            )
+        }
         Spacer(Modifier.height(8.dp))
         // Tabs
         Row(
@@ -144,10 +144,8 @@ fun ZaparaApp(vm: ScheduleViewModel) {
         Spacer(Modifier.height(8.dp))
         if (s.mapVisible) {
             MapCard(
-                maps = s.mapList,
                 current = s.currentMap,
                 file = s.mapPath?.let { java.io.File(it) }?.takeIf { it.exists() },
-                onPick = { vm.pickMap(it) },
                 onFullscreen = { vm.setFullscreen(true) },
                 onClose = { vm.toggleMap() }
             )
@@ -184,72 +182,6 @@ private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
             border = BorderStroke(1.dp, BorderDim)
         ) { Text(text, fontSize = 11.sp) }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun GroupDropdown(groups: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-    val selectedName = groups.firstOrNull { it.first == selectedId }?.second ?: "—"
-    val filtered = remember(groups, query) {
-        val q = query.trim()
-        if (q.isEmpty()) groups
-        else groups.filter { it.second.contains(q, ignoreCase = true) || it.first.contains(q, ignoreCase = true) }
-    }
-    val searchFocus = remember { FocusRequester() }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = {
-        expanded = !expanded
-        if (!expanded) query = ""
-    }) {
-        OutlinedTextField(
-            value = selectedName, onValueChange = {},
-            readOnly = true, label = { Text("Группа", fontSize = 10.sp) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor()
-                .fillMaxWidth()
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false; query = "" }
-        ) {
-            OutlinedTextField(
-                value = query, onValueChange = { query = it },
-                label = { Text("Поиск группы", fontSize = 10.sp) },
-                leadingIcon = { Text("⌕", color = MarbleDim, fontSize = 12.sp) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) TextButton(onClick = { query = "" }) {
-                        Text("✕", color = MarbleDim, fontSize = 10.sp)
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .focusRequester(searchFocus)
-            )
-            Text(
-                "${filtered.size}/${groups.size}", color = MarbleDim, fontSize = 9.sp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-            if (filtered.isEmpty()) {
-                Text("Не найдено", color = MarbleDim, fontSize = 11.sp, modifier = Modifier.padding(12.dp))
-            } else {
-                filtered.forEach { (id, name) ->
-                    DropdownMenuItem(
-                        text = { Text(name, color = Marble, fontSize = 11.sp) },
-                        onClick = { onSelect(id); expanded = false; query = "" }
-                    )
-                }
-            }
-        }
-    }
-    LaunchedEffect(expanded) {
-        if (expanded) {
-            try { searchFocus.requestFocus() } catch (_: Exception) { }
-        }
     }
 }
 
@@ -342,9 +274,13 @@ private fun DayView(vm: ScheduleViewModel) {
                 onDismiss = { vm.closeDialog() }
             )
         }
+        is UiDialog.Settings -> {
+            SettingsDialog(vm, onDismiss = { vm.closeDialog() })
+        }
         is UiDialog.Teachers -> {
             TeacherDialog(
                 groupName = s.groupName,
+                myGroupName = s.groupName,
                 query = s.teacherQuery,
                 onQuery = { vm.teacherQuery(it) },
                 onlyMy = s.teacherOnlyMy,
@@ -352,6 +288,7 @@ private fun DayView(vm: ScheduleViewModel) {
                 teachers = s.teacherList,
                 selected = s.teacherSelected,
                 onSelect = { vm.selectTeacher(it) },
+                onBack = { vm.deselectTeacher() },
                 details = s.teacherDetails,
                 isMy = { vm.isMyTeacher(it) },
                 onDismiss = { vm.closeDialog() }
@@ -589,66 +526,4 @@ private fun SummaryCard(sec: SummarySection) {
     }
 }
 
-@Composable
-fun RefreshButton(vm: ScheduleViewModel) {
-    TextButton(onClick = { vm.refresh() }) {
-        Text("Обновить", color = Bronze, fontSize = 11.sp)
-    }
-}
 
-@Composable
-private fun UpdateCheckButton() {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var checking by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<String?>(null) }
-    var apkUrl by remember { mutableStateOf<String?>(null) }
-    var tag by remember { mutableStateOf<String?>(null) }
-    TextButton(onClick = {
-        if (checking) return@TextButton
-        checking = true
-        result = null
-        scope.launch {
-            try {
-                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
-                if (info == null) result = "Не удалось проверить (API)"
-                else if (AutoUpdate.isNewer(info.tag)) {
-                    result = "Доступно ${info.tag} (у вас ${AutoUpdate.CURRENT_TAG})"
-                    apkUrl = info.apkUrl
-                    tag = info.tag
-                } else result = "У вас последняя — ${info.tag}"
-                if (info != null && AutoUpdate.isNewer(info.tag) && info.htmlUrl.isNotEmpty()) {
-                    // keep html for fallback
-                    apkUrl = apkUrl ?: info.htmlUrl
-                }
-            } catch (e: Exception) { result = "Ошибка: ${e.message}" }
-            finally { checking = false }
-        }
-    }) {
-        Text(if (checking) "Проверка..." else "Обновление", color = Bronze, fontSize = 11.sp, maxLines = 1)
-    }
-    if (result != null) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { result = null; apkUrl = null },
-            containerColor = Panel,
-            title = { Text("Обновление", color = Bronze, fontSize = 12.sp) },
-            text = { Text(result!! + (apkUrl?.let { "\n$it" } ?: ""), color = Marble, fontSize = 11.sp) },
-            confirmButton = {
-                if (apkUrl != null && tag != null && AutoUpdate.isNewer(tag!!)) {
-                    TextButton(onClick = {
-                        try {
-                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
-                            ctx.startActivity(intent)
-                        } catch (_: Exception) {}
-                        result = null; apkUrl = null
-                    }) { Text("Открыть релиз", color = Bronze, fontSize = 11.sp) }
-                } else {
-                    TextButton(onClick = { result = null; apkUrl = null }) { Text("OK", color = Bronze, fontSize = 11.sp) }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { result = null; apkUrl = null }) { Text("Закрыть", color = MarbleDim, fontSize = 11.sp) }
-            }
-        )
-    }
-}

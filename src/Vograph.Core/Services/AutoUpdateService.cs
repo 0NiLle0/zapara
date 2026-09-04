@@ -53,8 +53,44 @@ public class AutoUpdateService
         return null;
     }
 
-    public static string CurrentTagWindows => "windows-v1.1";
-    public static string CurrentTagAndroid => "android-v1.1";
+    public static string CurrentTagWindows => "windows-v1.2";
+    public static string CurrentTagAndroid => "android-v1.2";
+
+    /// <summary>Download a release asset with progress (0..1, -1 if size unknown).</summary>
+    public async Task DownloadAssetAsync(string url, string destPath, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(destPath) ?? ".");
+        string tmp = destPath + ".part";
+        try
+        {
+            using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            resp.EnsureSuccessStatusCode();
+            long total = resp.Content.Headers.ContentLength ?? -1;
+            using var src = await resp.Content.ReadAsStreamAsync(ct);
+            using var dst = File.Create(tmp);
+            var buf = new byte[81920];
+            long done = 0;
+            int n;
+            while ((n = await src.ReadAsync(buf, 0, buf.Length, ct)) > 0)
+            {
+                await dst.WriteAsync(buf, 0, n, ct);
+                done += n;
+                if (total > 0) progress?.Report((double)done / total);
+            }
+            dst.Close();
+            if (File.Exists(destPath)) File.Delete(destPath);
+            File.Move(tmp, destPath);
+            progress?.Report(1.0);
+        }
+        catch
+        {
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+            throw;
+        }
+    }
+
+    public static string UpdatesDir =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Vograph", "updates");
 
     public static bool IsNewer(string latestTag, string currentTag)
     {

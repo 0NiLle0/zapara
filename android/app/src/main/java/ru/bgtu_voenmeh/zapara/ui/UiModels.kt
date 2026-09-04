@@ -16,4 +16,20 @@ sealed interface UiDialog {
     data class Homework(val lessonIndex: Int) : UiDialog
     data object Friends : UiDialog
     data object Teachers : UiDialog
+    data object Settings : UiDialog
 }
+
+data class UpdateUiState(
+    val checking: Boolean = false,
+    val tag: String = "",
+    val apkUrl: String? = null,
+    val htmlUrl: String? = null,
+    val upToDate: Boolean = false,
+    val error: String? = null,
+    val downloading: Boolean = false,
+    val progress: Float = -1f,
+    val doneBytes: Long = 0L,
+    val totalBytes: Long = -1L,
+    val readyFile: String? = null,
+    val auto: Boolean = true
+)

@@ -16,4 +16,5 @@ public class Settings
     public string? PeriodStart { get; set; } // YYYY-MM-DD
     public int MapPanelWidth { get; set; } = 300; // width of right map block, 240..600, persisted for "ширина всех блоков" — reduced per user request (hidden by default)
     public bool AlwaysShowAllTrafficLights { get; set; } = false; // false = only non-empty (· hidden), true = always show all selected (dimmed when empty)
+    public bool AutoUpdate { get; set; } = true; // silent self-update from GitHub releases (opt-out)
 }

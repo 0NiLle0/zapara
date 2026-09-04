@@ -1,13 +1,21 @@
 package ru.bgtu_voenmeh.zapara.data
 
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
 import org.json.JSONArray
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
 object AutoUpdate {
-    const val CURRENT_TAG = "android-v1.1"
+    const val CURRENT_TAG = "android-v1.2"
     private const val OWNER = "0NiLle0"
     private const val REPO = "zapara"
+    private const val PREFS = "zapara"
+    private const val KEY_AUTO = "auto_update"
 
     data class UpdateInfo(val tag: String, val htmlUrl: String, val apkUrl: String?, val publishedAt: String)
 
@@ -44,6 +52,72 @@ object AutoUpdate {
             return UpdateInfo(tag, html, apk, published)
         }
         return null
+    }
+
+    class DownloadCancelled : IOException("cancelled")
+
+    /** Download a release asset with progress. Throws on HTTP error or [DownloadCancelled]. */
+    fun downloadAsset(
+        url: String,
+        dest: File,
+        onProgress: (done: Long, total: Long) -> Unit,
+        isCancelled: () -> Boolean
+    ) {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "Zapara-AutoUpdate/1.0")
+            connectTimeout = 10000
+            readTimeout = 30000
+            instanceFollowRedirects = true
+        }
+        if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
+        val total = conn.contentLengthLong.takeIf { it > 0 } ?: -1L
+        dest.parentFile?.mkdirs()
+        val tmp = File(dest.parent, dest.name + ".part")
+        try {
+            conn.inputStream.use { inp ->
+                FileOutputStream(tmp).use { out ->
+                    val buf = ByteArray(8192)
+                    var done = 0L
+                    while (true) {
+                        if (isCancelled()) throw DownloadCancelled()
+                        val n = inp.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        done += n
+                        onProgress(done, total)
+                    }
+                }
+            }
+            if (!tmp.renameTo(dest)) {
+                tmp.copyTo(dest, overwrite = true)
+                tmp.delete()
+            }
+        } catch (e: Exception) {
+            try { tmp.delete() } catch (_: Exception) {}
+            throw e
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    fun apkFileFor(ctx: Context, tag: String): File =
+        File(File(ctx.cacheDir, "updates"), "ZAPARA_${tag}_android.apk")
+
+    /** System installer intent for a downloaded APK (still needs one user tap — OS requirement). */
+    fun installIntent(ctx: Context, file: File): Intent {
+        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+        return Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    fun isAutoUpdateEnabled(ctx: Context): Boolean =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AUTO, true)
+
+    fun setAutoUpdateEnabled(ctx: Context, value: Boolean) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_AUTO, value).apply()
     }
 
     fun isNewer(latest: String, current: String = CURRENT_TAG): Boolean {

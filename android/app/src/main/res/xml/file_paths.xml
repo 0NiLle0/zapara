@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for self-update APKs (cache/updates/*.apk). -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>
