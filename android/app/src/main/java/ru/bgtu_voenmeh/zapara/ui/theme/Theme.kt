@@ -15,7 +15,7 @@ val MarbleDim = Color(0xFF6B7280)
 val Bronze = Color(0xFF6CA5E0)
 val Patina = Color(0xFF98C379)
 val Cinnabar = Color(0xFFE06C75)
-val BorderDim = Color(0xFF262B33)
+val BorderDim = Color(0xFF3A424D)
 
 private val DarkColors = darkColorScheme(
     primary = Bronze,

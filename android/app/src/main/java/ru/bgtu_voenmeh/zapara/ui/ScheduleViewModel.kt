@@ -65,7 +65,7 @@ data class ScheduleUiState(
     val nextMap: Map<String, String> = emptyMap(),
     /** traffic dots aligned with [lessons] order */
     val traffic: List<List<TrafficDot>> = emptyList(),
-    /** subjectNormalized -> visible homework (far hidden) */
+    /** subjectNormalized -> homework (far shown dimmed, not hidden) */
     val hwMap: Map<String, List<Homework>> = emptyMap(),
     /** "norm|dow" -> display name (precomputed off-main-thread) */
     val displayMap: Map<String, String> = emptyMap(),
@@ -265,11 +265,11 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
             homework.recomputeAll()
             val dots = if (tab == Tab.Week || tab == Tab.Summary) emptyList()
             else dayLessons.map { l -> trafficFor(l, date, s) }
+            // Show ALL homework including far (hiding far made new items "vanish").
             val hw = dayLessons
                 .map { it.subjectNormalized }.distinct()
                 .associateWith { norm ->
                     homework.forSubjectByNorm(norm)
-                        .filter { it.status != "far" }
                         .sortedBy { hwOrder(it.status) }
                 }
             dots to hw
@@ -560,6 +560,17 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Fire a test notification for today (same content as the morning alarm). */
+    fun testNotification() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Notifications.ensureChannel(getApplication())
+                Notifications.showForTime(getApplication(), "__test__")
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     fun notifPermissionGranted(): Boolean {
         if (android.os.Build.VERSION.SDK_INT < 33) return true
         return androidx.core.content.ContextCompat.checkSelfPermission(
@@ -699,6 +710,20 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
     /** All 9 building maps as (fileName to title) pairs for the chooser dialog. */
     fun allMapPairs(): List<Pair<String, String>> =
         allMaps().map { it.fileName to it.title }
+
+    /** Sorted floors available for a building (ГК 1-4, УЛК 1-5). */
+    fun floorsForBuilding(building: String): List<Int> =
+        allMaps().filter { it.building == building }.map { it.floor }.sorted()
+
+    /** Step one floor up/down within the current building (no-op at the edge). */
+    fun mapFloorStep(delta: Int) {
+        val cur = state.currentMap
+        if (cur == null || !cur.hasMap) return
+        val floors = floorsForBuilding(cur.building)
+        val next = floors.getOrNull(floors.indexOf(cur.floor) + delta) ?: return
+        allMaps().firstOrNull { it.building == cur.building && it.floor == next }
+            ?.let { selectMapByFile(it.fileName) }
+    }
 
     /** Show a map chosen by building (header "Карта" button). */
     fun selectMapByFile(fileName: String) {

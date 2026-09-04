@@ -104,6 +104,10 @@ fun ZoomableMapImage(file: File?, contentDesc: String, resetSignal: Int = 0) {
 fun MapCard(
     current: MapInfo?,
     file: File?,
+    canFloorUp: Boolean,
+    canFloorDown: Boolean,
+    onFloorUp: () -> Unit,
+    onFloorDown: () -> Unit,
     onFullscreen: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -148,13 +152,18 @@ fun MapCard(
                     OutlinedButton(
                         onClick = onFullscreen,
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-                        border = BorderStroke(1.dp, BorderDim)
+                        border = BorderStroke(1.5.dp, BorderDim)
                     ) { Text("⛶ На весь экран", fontSize = 10.sp) }
                     OutlinedButton(
                         onClick = { resetSignal++ },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-                        border = BorderStroke(1.dp, BorderDim)
+                        border = BorderStroke(1.5.dp, BorderDim)
                     ) { Text("Сбросить вид", fontSize = 10.sp) }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GhostBtn(text = "Этаж ↑", onClick = onFloorUp, enabled = canFloorUp, modifier = Modifier.weight(1f))
+                    GhostBtn(text = "Этаж ↓", onClick = onFloorDown, enabled = canFloorDown, modifier = Modifier.weight(1f))
                 }
             }
         }

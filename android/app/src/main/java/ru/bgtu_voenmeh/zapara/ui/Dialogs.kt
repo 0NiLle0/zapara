@@ -138,6 +138,9 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                 }
                 if (ntErr != null) Text(ntErr!!, color = Cinnabar, fontSize = 10.sp)
                 Text("Время 1 — пары завтра, время 2 — пары сегодня.", color = MarbleDim, fontSize = 9.sp)
+                TextButton(onClick = { vm.testNotification() }) {
+                    Text("Показать тестовое", color = Bronze, fontSize = 11.sp)
+                }
                 Spacer(Modifier.height(10.dp))
                 Text("ПРИЛОЖЕНИЕ", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 Text("Версия ${AutoUpdate.CURRENT_TAG}", color = MarbleDim, fontSize = 10.sp)
@@ -448,7 +451,7 @@ fun GhostBtn(
         enabled = enabled,
         modifier = modifier,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble, disabledContentColor = MarbleDim),
-        border = BorderStroke(1.dp, BorderDim)
+        border = BorderStroke(1.5.dp, BorderDim)
     ) { Text(text, fontSize = fontSize, maxLines = 1) }
 }
 
@@ -469,7 +472,7 @@ fun FerryBtn(
             contentColor = Bronze,
             disabledContentColor = MarbleDim
         ),
-        border = BorderStroke(1.dp, Bronze)
+        border = BorderStroke(1.5.dp, Bronze)
     ) { Text(text, fontSize = fontSize, maxLines = 1) }
 }
 

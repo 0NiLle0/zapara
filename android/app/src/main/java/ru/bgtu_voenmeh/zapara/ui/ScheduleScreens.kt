@@ -60,18 +60,14 @@ fun ZaparaApp(vm: ScheduleViewModel) {
             .background(Obsidian)
             .padding(10.dp)
     ) {
-        // Header — 2 rows to avoid squeeze on 360dp (was wrapping "нечетн/ая/неделя" per letter)
+        // Header — single aligned line (app title dropped: launcher already shows it)
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Военмех - расписание и карты", color = Marble, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Группа ${s.groupName.ifEmpty { "—" }} · ${if (s.parityText == "НЕЧЕТНАЯ") "нечетная" else "четная"} неделя",
-                    color = MarbleDim, fontSize = 10.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            Text(
+                "Группа ${s.groupName.ifEmpty { "—" }} · ${if (s.parityText == "НЕЧЕТНАЯ") "нечетная" else "четная"} неделя",
+                color = MarbleDim, fontSize = 11.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,9 +150,18 @@ fun ZaparaApp(vm: ScheduleViewModel) {
         }
         Spacer(Modifier.height(8.dp))
         if (s.mapVisible) {
+            val curMap = s.currentMap
+            val mapFloors = remember(curMap) {
+                curMap?.takeIf { it.hasMap }?.let { vm.floorsForBuilding(it.building) }.orEmpty()
+            }
+            val floorIdx = mapFloors.indexOf(curMap?.floor)
             MapCard(
-                current = s.currentMap,
+                current = curMap,
                 file = s.mapPath?.let { java.io.File(it) }?.takeIf { it.exists() },
+                canFloorUp = curMap?.hasMap == true && floorIdx in 0 until mapFloors.lastIndex,
+                canFloorDown = curMap?.hasMap == true && floorIdx > 0,
+                onFloorUp = { vm.mapFloorStep(1) },
+                onFloorDown = { vm.mapFloorStep(-1) },
                 onFullscreen = { vm.setFullscreen(true) },
                 onClose = { vm.toggleMap() }
             )
@@ -266,13 +271,13 @@ private fun TabButton(text: String, selected: Boolean, onClick: () -> Unit) {
         androidx.compose.material3.Button(
             onClick = onClick,
             colors = ButtonDefaults.buttonColors(containerColor = PanelAlt, contentColor = Bronze),
-            border = BorderStroke(1.dp, Bronze)
+            border = BorderStroke(1.5.dp, Bronze)
         ) { Text(text, fontSize = 11.sp) }
     } else {
         OutlinedButton(
             onClick = onClick,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-            border = BorderStroke(1.dp, BorderDim)
+            border = BorderStroke(1.5.dp, BorderDim)
         ) { Text(text, fontSize = 11.sp) }
     }
 }
