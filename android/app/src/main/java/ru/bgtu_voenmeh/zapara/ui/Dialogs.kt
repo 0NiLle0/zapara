@@ -63,11 +63,11 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
     val u = vm.updateUi
     val ctx = LocalContext.current
     var groupSelectOpen by remember { mutableStateOf(false) }
-    // Fresh verdict on every open: a stored "up to date" may predate newer releases.
+    // Fresh verdict on every open (cached 6h — explicit button always forces the network).
     LaunchedEffect(Unit) {
         val cur = vm.updateUi
         if (!cur.checking && !cur.downloading && !cur.hasUpdate && cur.readyFile == null) {
-            vm.checkUpdateManual()
+            vm.checkUpdateManual(force = false)
         }
     }
     AlertDialog(

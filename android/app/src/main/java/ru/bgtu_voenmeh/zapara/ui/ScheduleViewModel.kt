@@ -159,8 +159,9 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 updateUi = updateUi.copy(auto = auto)
                 if (!auto) return@launch
-                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
-                    ?: return@launch
+                val res = resolveLatest(force = false)
+                val info = res.info
+                if (info == null || res.upToDate) return@launch
                 if (!AutoUpdate.isNewer(info.tag)) return@launch
                 updateUi = updateUi.copy(tag = info.tag, apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true)
                 if (info.apkUrl != null) startUpdateDownload()
@@ -653,17 +654,44 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
         updateUi = updateUi.copy(auto = v)
     }
 
-    fun checkUpdateManual() {
+    private data class CheckResult(val info: AutoUpdate.UpdateInfo?, val upToDate: Boolean)
+
+    /**
+     * Release lookup with a 6h cache (shared-VPN IPs burn through GitHub's 60/hr anon quota).
+     * force=true always hits the network (explicit "Проверить обновление" button).
+     */
+    private suspend fun resolveLatest(force: Boolean): CheckResult =
+        withContext(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            if (!force) {
+                val c = AutoUpdate.cachedCheck(app)
+                if (c.tag != null && System.currentTimeMillis() - c.at < AutoUpdate.CHECK_TTL_MS) {
+                    val cached = AutoUpdate.UpdateInfo(c.tag, c.htmlUrl.orEmpty(), c.apkUrl, "")
+                    return@withContext CheckResult(cached, !AutoUpdate.isNewer(c.tag))
+                }
+            }
+            val info = AutoUpdate.getLatest("android")
+            if (info != null) AutoUpdate.saveCheck(app, info.tag, info.apkUrl, info.htmlUrl)
+            CheckResult(info, info == null || !AutoUpdate.isNewer(info.tag))
+        }
+
+    private fun stamp(): String = try {
+        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    } catch (_: Exception) {
+        ""
+    }
+
+    fun checkUpdateManual(force: Boolean = true) {
         if (updateUi.checking || updateUi.downloading) return
         viewModelScope.launch {
             updateUi = updateUi.copy(checking = true, error = null, upToDate = false, hasUpdate = false, tag = "", readyFile = null, log = "Запрос к GitHub...")
             try {
-                val info = withContext(Dispatchers.IO) { AutoUpdate.getLatest("android") }
-                val at = java.time.LocalTime.now()
-                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                val res = resolveLatest(force)
+                val info = res.info
+                val at = stamp()
                 if (info == null) {
-                    updateUi = updateUi.copy(checking = false, error = "Релизов нет", log = "API ок, релизов нет", checkedAt = at)
-                } else if (AutoUpdate.isNewer(info.tag)) {
+                    updateUi = updateUi.copy(checking = false, error = "Релизов нет", log = "API ок, релизов нет", checkedAt = at, htmlUrl = AutoUpdate.RELEASES_PAGE)
+                } else if (!res.upToDate) {
                     updateUi = updateUi.copy(
                         checking = false, tag = info.tag,
                         apkUrl = info.apkUrl, htmlUrl = info.htmlUrl, hasUpdate = true,
@@ -673,10 +701,13 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                     updateUi = updateUi.copy(checking = false, upToDate = true, tag = info.tag, log = "Новее нет", checkedAt = at)
                 }
             } catch (e: Exception) {
-                val at = try {
-                    java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
-                } catch (_: Exception) { "" }
-                updateUi = updateUi.copy(checking = false, error = "Ошибка: ${e.message ?: e.javaClass.simpleName}", log = "Проверка не удалась", checkedAt = at)
+                val raw = e.message ?: e.javaClass.simpleName
+                val friendly = if ("403" in raw) {
+                    "GitHub ограничил запросы с вашей сети (VPN делит лимит). Попробуйте позже/без VPN — или кнопкой «В браузере»"
+                } else {
+                    "Ошибка: $raw"
+                }
+                updateUi = updateUi.copy(checking = false, error = friendly, log = "Проверка не удалась", checkedAt = stamp(), htmlUrl = AutoUpdate.RELEASES_PAGE)
             }
         }
     }

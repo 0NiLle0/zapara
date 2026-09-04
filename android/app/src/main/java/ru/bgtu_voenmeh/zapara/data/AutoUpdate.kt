@@ -11,11 +11,39 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AutoUpdate {
-    const val CURRENT_TAG = "android-v1.2.17"
+    const val CURRENT_TAG = "android-v1.2.18"
     private const val OWNER = "0NiLle0"
     private const val REPO = "zapara"
     private const val PREFS = "zapara"
     private const val KEY_AUTO = "auto_update"
+    private const val KEY_CHECK_AT = "update_check_at"
+    private const val KEY_CHECK_TAG = "update_check_tag"
+    private const val KEY_CHECK_APK = "update_check_apk"
+    private const val KEY_CHECK_HTML = "update_check_html"
+    const val RELEASES_PAGE = "https://github.com/0NiLle0/zapara/releases/latest"
+    /** 6h: GitHub allows 60 anon API calls/hour per IP — VPNs share one IP, don't burn it. */
+    const val CHECK_TTL_MS = 6 * 3600 * 1000L
+
+    data class CachedCheck(val at: Long, val tag: String?, val apkUrl: String?, val htmlUrl: String?)
+
+    fun cachedCheck(ctx: Context): CachedCheck {
+        val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return CachedCheck(
+            p.getLong(KEY_CHECK_AT, 0),
+            p.getString(KEY_CHECK_TAG, null),
+            p.getString(KEY_CHECK_APK, null),
+            p.getString(KEY_CHECK_HTML, null)
+        )
+    }
+
+    fun saveCheck(ctx: Context, tag: String?, apkUrl: String?, htmlUrl: String?) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_CHECK_AT, System.currentTimeMillis())
+            .putString(KEY_CHECK_TAG, tag)
+            .putString(KEY_CHECK_APK, apkUrl)
+            .putString(KEY_CHECK_HTML, htmlUrl)
+            .apply()
+    }
 
     data class UpdateInfo(val tag: String, val htmlUrl: String, val apkUrl: String?, val publishedAt: String)
 
