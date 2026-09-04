@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -78,10 +80,12 @@ fun ZoomableMapImage(file: File?, contentDesc: String, resetSignal: Int = 0) {
             null
         }
     }
+    // clipToBounds + Fit: a full-size JPG must not bleed over the buttons below.
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
+            .clipToBounds()
             .transformable(state),
         contentAlignment = Alignment.Center
     ) {
@@ -89,10 +93,13 @@ fun ZoomableMapImage(file: File?, contentDesc: String, resetSignal: Int = 0) {
             Image(
                 bitmap = bitmap,
                 contentDescription = contentDesc,
-                modifier = Modifier.graphicsLayer(
-                    scaleX = scale, scaleY = scale,
-                    translationX = offset.x, translationY = offset.y
-                )
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(
+                        scaleX = scale, scaleY = scale,
+                        translationX = offset.x, translationY = offset.y
+                    )
             )
         } else {
             Text("Карта не загружена", color = MarbleDim, fontSize = 10.sp)
