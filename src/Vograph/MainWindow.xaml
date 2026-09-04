@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="ЗАПАРА" Height="820" Width="1360" MinHeight="640" MinWidth="1180"
+        Title="Военмех - расписание и карты" Height="820" Width="1360" MinHeight="640" MinWidth="1180"
         Background="{StaticResource Obsidian}"
         FontFamily="{StaticResource BodyFont}"
         WindowStartupLocation="CenterScreen">
@@ -23,7 +23,7 @@
                 <StackPanel Grid.Column="0" Orientation="Vertical">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="LeftPanelToggle" Content="≡" Style="{StaticResource GhostButton}" Padding="0" FontSize="19" Width="34" Height="34" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="Menu" Visibility="Collapsed"/>
-                        <TextBlock Text="ЗАПАРА" Style="{StaticResource Title}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Военмех - расписание и карты" Style="{StaticResource Title}" VerticalAlignment="Center"/>
                         <TextBlock x:Name="HeaderHint" Text="Группа — · —" Foreground="{StaticResource MarbleDim}" FontSize="10" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="Collapsed">

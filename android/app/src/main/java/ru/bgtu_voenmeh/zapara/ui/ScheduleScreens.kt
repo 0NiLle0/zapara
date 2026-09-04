@@ -62,7 +62,7 @@ fun ZaparaApp(vm: ScheduleViewModel) {
         // Header — 2 rows to avoid squeeze on 360dp (was wrapping "нечетн/ая/неделя" per letter)
         Column {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("ЗАПАРА", color = Marble, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Военмех - расписание и карты", color = Marble, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     "Группа ${s.groupName.ifEmpty { "—" }} · ${if (s.parityText == "НЕЧЕТНАЯ") "нечетная" else "четная"} неделя",

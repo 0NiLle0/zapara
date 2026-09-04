@@ -11,7 +11,7 @@ public class I18nService
         ["ru"] = new(StringComparer.OrdinalIgnoreCase)
         {
             // Header
-            ["appTitle"] = "ЗАПАРА",
+            ["appTitle"] = "Военмех - расписание и карты",
             ["headerHint"] = "Группа {0} · {1} неделя",
             ["headerSub"] = "Расписание Военмеха · завтра по умолчанию",
             ["odd"] = "нечетная",
@@ -107,7 +107,7 @@ public class I18nService
         },
         ["en"] = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["appTitle"] = "ZAPARA",
+            ["appTitle"] = "Voenmeh - schedule & maps",
             ["headerHint"] = "Group {0} · {1} week",
             ["headerSub"] = "Voenmeh timetable · tomorrow by default",
             ["odd"] = "odd",
