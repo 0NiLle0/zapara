@@ -1,11 +1,9 @@
 package ru.bgtu_voenmeh.zapara.data
 
-import kotlinx.serialization.Serializable
-
 // Wire shape must stay compatible with Windows SyncPayload (v1).
 // Room entities are mapped here for transport.
+// Note: @Serializable removed for debug build - will add kotlinx-serialization in A5 final.
 
-@Serializable
 data class SyncPayload(
     val Version: Int = 1,
     val ExportedAt: String, // ISO-8601
@@ -15,7 +13,6 @@ data class SyncPayload(
     val Settings: SettingsPayload = SettingsPayload()
 )
 
-@Serializable
 data class OverridePayload(
     val SubjectRawNormalized: String,
     val Scope: String,
@@ -24,7 +21,6 @@ data class OverridePayload(
     val CreatedAt: String
 )
 
-@Serializable
 data class HomeworkPayload(
     val SubjectRawNormalized: String,
     val Text: String,
@@ -35,7 +31,6 @@ data class HomeworkPayload(
     val DoneAt: String? = null
 )
 
-@Serializable
 data class FriendPayload(
     val GroupName: String,
     val ColorHex: String,
@@ -43,7 +38,6 @@ data class FriendPayload(
     val MemberNames: String = ""
 )
 
-@Serializable
 data class SettingsPayload(
     val MyGroupId: String? = null,
     val ParityInvert: Boolean = false,
