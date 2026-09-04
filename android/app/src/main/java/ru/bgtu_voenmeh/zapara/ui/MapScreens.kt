@@ -132,21 +132,30 @@ fun MapCard(
                     color = MarbleDim, fontSize = 10.sp,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
-            }
-            Spacer(Modifier.height(6.dp))
-            ZoomableMapImage(file = file, contentDesc = current?.title ?: "карта", resetSignal = resetSignal)
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onFullscreen,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-                    border = BorderStroke(1.dp, BorderDim)
-                ) { Text("⛶ На весь экран", fontSize = 10.sp) }
-                OutlinedButton(
-                    onClick = { resetSignal++ },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
-                    border = BorderStroke(1.dp, BorderDim)
-                ) { Text("Сбросить вид", fontSize = 10.sp) }
+            } else if (!current.hasMap) {
+                // Remote lesson or unknown room — no map exists, don't show an empty viewer.
+                Text(
+                    if (current.isRemote) "Дистанционно — карта не нужна"
+                    else "Для аудитории ${current.classroomRaw.ifBlank { "—" }} карты нет",
+                    color = MarbleDim, fontSize = 10.sp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            } else {
+                Spacer(Modifier.height(6.dp))
+                ZoomableMapImage(file = file, contentDesc = current.title, resetSignal = resetSignal)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onFullscreen,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
+                        border = BorderStroke(1.dp, BorderDim)
+                    ) { Text("⛶ На весь экран", fontSize = 10.sp) }
+                    OutlinedButton(
+                        onClick = { resetSignal++ },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Marble),
+                        border = BorderStroke(1.dp, BorderDim)
+                    ) { Text("Сбросить вид", fontSize = 10.sp) }
+                }
             }
         }
     }
