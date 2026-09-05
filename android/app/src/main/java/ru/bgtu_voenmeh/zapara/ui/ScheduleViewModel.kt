@@ -670,7 +670,8 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                     return@withContext CheckResult(cached, !AutoUpdate.isNewer(c.tag))
                 }
             }
-            val info = AutoUpdate.getLatest("android")
+            // Feed first (no quota), API fallback (exact URLs). Throws only if both fail.
+            val info = AutoUpdate.getLatestSmart("android")
             if (info != null) AutoUpdate.saveCheck(app, info.tag, info.apkUrl, info.htmlUrl)
             CheckResult(info, info == null || !AutoUpdate.isNewer(info.tag))
         }

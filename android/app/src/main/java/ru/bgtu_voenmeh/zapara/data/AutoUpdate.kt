@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object AutoUpdate {
-    const val CURRENT_TAG = "android-v1.2.18"
+    const val CURRENT_TAG = "android-v1.2.19"
     private const val OWNER = "0NiLle0"
     private const val REPO = "zapara"
     private const val PREFS = "zapara"
@@ -46,6 +46,73 @@ object AutoUpdate {
     }
 
     data class UpdateInfo(val tag: String, val htmlUrl: String, val apkUrl: String?, val publishedAt: String)
+
+    private const val FEED_URL = "https://github.com/$OWNER/$REPO/releases.atom"
+
+    /**
+     * Primary lookup: releases Atom feed (plain web traffic — NO API quota, VPN-proof).
+     * Asset URLs are stable: .../releases/download/<tag>/<filename>.
+     * Returns null when the feed is unreachable or the file 404s (caller falls back to API).
+     */
+    fun getLatestViaFeed(channel: String = "android"): UpdateInfo? {
+        val pfx = if (channel == "windows") "windows-" else "android-"
+        val assetName = if (channel == "windows") "ZAPARA_win-x64.zip" else "ZAPARA_android-debug.apk"
+        val conn = (URL(FEED_URL).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "Zapara-AutoUpdate/1.0")
+            setRequestProperty("Cache-Control", "no-cache")
+            connectTimeout = 10000; readTimeout = 15000
+        }
+        try {
+            if (conn.responseCode !in 200..299) return null
+            val xml = conn.inputStream.bufferedReader().readText()
+            val tag = parseFeedTag(xml, pfx) ?: return null
+            val apkUrl = "https://github.com/$OWNER/$REPO/releases/download/$tag/$assetName"
+            if (!urlExists(apkUrl)) return null
+            return UpdateInfo(tag, "https://github.com/$OWNER/$REPO/releases/tag/$tag", apkUrl, "")
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** First /releases/tag/<tag> link (newest-first feed) matching the channel prefix. Pure — unit-tested. */
+    fun parseFeedTag(xml: String, prefix: String): String? {
+        val re = Regex("href=\"[^\"]*/releases/tag/([^\"]+)\"")
+        for (m in re.findAll(xml)) {
+            val tag = m.groupValues[1]
+            if (tag.startsWith(prefix, ignoreCase = true)) return tag
+        }
+        return null
+    }
+
+    private fun urlExists(url: String): Boolean {
+        var c: HttpURLConnection? = null
+        return try {
+            c = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "HEAD"
+                setRequestProperty("User-Agent", "Zapara-AutoUpdate/1.0")
+                connectTimeout = 10000; readTimeout = 10000
+                instanceFollowRedirects = true
+            }
+            c.responseCode in 200..299
+        } catch (_: Exception) {
+            false
+        } finally {
+            c?.disconnect()
+        }
+    }
+
+    /**
+     * Smart lookup: feed first (no quota), API fallback (exact asset URLs, quota-limited).
+     * Throws only when BOTH fail — with the API error (it carries the HTTP code).
+     */
+    fun getLatestSmart(channel: String = "android"): UpdateInfo? {
+        try {
+            getLatestViaFeed(channel)?.let { return it }
+        } catch (_: Exception) {
+        }
+        return getLatest(channel)
+    }
 
     fun getLatest(channel: String = "android"): UpdateInfo? {
         val pfx = if (channel == "windows") "windows-" else "android-"
