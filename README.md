@@ -55,8 +55,9 @@ Android:
 
 ```powershell
 cd android
-.\gradlew.bat :app:assembleDebug
-.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleGithubDebug
+.\gradlew.bat :app:testGithubDebugUnitTest
+# Сборка для RuStore (без самообновления): :app:assembleRustoreRelease
 ```
 
 ## Структура

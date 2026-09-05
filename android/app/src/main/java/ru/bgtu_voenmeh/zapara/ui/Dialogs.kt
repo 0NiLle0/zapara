@@ -42,6 +42,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.bgtu_voenmeh.zapara.BuildConfig
 import ru.bgtu_voenmeh.zapara.data.AutoUpdate
 import ru.bgtu_voenmeh.zapara.data.Friend
 import ru.bgtu_voenmeh.zapara.data.GroupInfo
@@ -152,7 +153,12 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Text("ПРИЛОЖЕНИЕ", color = Bronze, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 Text("Версия ${AutoUpdate.CURRENT_TAG}", color = MarbleDim, fontSize = 10.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!BuildConfig.SELF_UPDATE) {
+                    // RuStore flavor: updates come via RuStore only (store policy).
+                    Text("Обновления приходят через RuStore", color = MarbleDim, fontSize = 11.sp)
+                }
+                if (BuildConfig.SELF_UPDATE) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = u.auto, onCheckedChange = { vm.setAutoUpdate(it) })
                     Text("Автообновление", color = Marble, fontSize = 11.sp)
                 }
@@ -235,6 +241,7 @@ fun SettingsDialog(vm: ScheduleViewModel, onDismiss: () -> Unit) {
                         Text("Проверить обновление", color = Bronze, fontSize = 11.sp)
                     }
                 }
+                } // BuildConfig.SELF_UPDATE
             }
         },
         confirmButton = {

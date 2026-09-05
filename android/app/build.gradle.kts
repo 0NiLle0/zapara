@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,6 +21,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release key lives OUTSIDE the repo (local.properties, gitignored).
+    // Keystore: %USERPROFILE%\.keystores\zapara-release.jks (alias zapara). Back it up!
+    val keystoreProps = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        create("release") {
+            val sf = keystoreProps.getProperty("zapara.storeFile")
+            if (!sf.isNullOrBlank()) {
+                storeFile = file(sf)
+                storePassword = keystoreProps.getProperty("zapara.storePassword")
+                keyAlias = keystoreProps.getProperty("zapara.keyAlias")
+                keyPassword = keystoreProps.getProperty("zapara.keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -26,6 +45,22 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Unsigned (instead of failing) when local.properties has no key — e.g. fresh checkout.
+            if (!keystoreProps.getProperty("zapara.storeFile").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+    // github = self-update from GitHub releases; rustore = store build (updates via RuStore only).
+    flavorDimensions += "dist"
+    productFlavors {
+        create("github") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
+        create("rustore") {
+            dimension = "dist"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
         }
     }
     compileOptions {
@@ -37,6 +72,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

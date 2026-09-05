@@ -151,8 +151,9 @@ class ScheduleViewModel(app: Application) : AndroidViewModel(app) {
                 state = state.copy(loading = false, error = e.message ?: "load error")
             }
         }
-        // Silent self-update check on launch (opt-out via Settings).
+        // Silent self-update check on launch (opt-out via Settings; off in RuStore flavor).
         viewModelScope.launch {
+            if (!ru.bgtu_voenmeh.zapara.BuildConfig.SELF_UPDATE) return@launch
             try {
                 val auto = withContext(Dispatchers.IO) {
                     AutoUpdate.isAutoUpdateEnabled(getApplication())
